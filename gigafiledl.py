@@ -478,19 +478,32 @@ class GigaFileManager:
             display_text = f"{url} [PW]" if password else url
             self.progress_queue.put(("update", item_id, "ダウンロード", display_text, "開始", "0%", ""))
             
+            # URLからファイルIDを抽出
+            file_id_match = re.search(r'^https?:\/\/\d+?\.gigafile\.nu\/([a-z0-9-]+)$', url)
+            if not file_id_match:
+                self.progress_queue.put(("update", item_id, "ダウンロード", "エラー", "失敗", "0%", ""))
+                self.progress_queue.put(("log", f"無効なURL形式: {url}"))
+                return
+            
+            file_id = file_id_match.group(1)
+            
+            # ファイルIDごとのディレクトリを作成
+            file_id_dir = os.path.join(download_dir, file_id)
+            os.makedirs(file_id_dir, exist_ok=True)
+            
             # GFileインスタンス作成（パスワードがある場合はkeyパラメータに渡す）
             gfile = GFile(url, progress=False, mute=True, key=password)
             
             self.progress_queue.put(("update", item_id, "ダウンロード", display_text, "進行中", "0%", ""))
             
-            # ダウンロード実行
-            downloaded_files = gfile.download(odir=download_dir)
+            # ファイルIDディレクトリにダウンロード実行
+            downloaded_files = gfile.download(odir=file_id_dir)
             
             if downloaded_files:
                 filename = str(downloaded_files[0]) if downloaded_files else "不明"
                 self.progress_queue.put(("update", item_id, "ダウンロード", filename, "完了", "100%", ""))
                 pw_text = " [パスワード付き]" if password else ""
-                self.progress_queue.put(("log", f"ダウンロード完了{pw_text}: {url} -> {filename}"))
+                self.progress_queue.put(("log", f"ダウンロード完了{pw_text}: {url} -> {filename} (フォルダ: {file_id})"))
             else:
                 self.progress_queue.put(("update", item_id, "ダウンロード", "エラー", "失敗", "0%", ""))
                 pw_text = " [パスワード付き]" if password else ""
