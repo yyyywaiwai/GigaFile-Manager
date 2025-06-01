@@ -57,7 +57,7 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
-        pip install pyinstaller
+        pip install pyinstaller Pillow
 
     - name: Build with PyInstaller (Windows)
       if: matrix.platform == 'windows'
@@ -85,8 +85,6 @@ jobs:
           --exclude-module=altair `
           --exclude-module=gradio `
           --exclude-module=timm `
-          --exclude-module=PIL `
-          --exclude-module=Pillow `
           --exclude-module=sympy `
           --exclude-module=numba `
           --exclude-module=llvmlite `
@@ -118,8 +116,6 @@ jobs:
           --exclude-module=altair \
           --exclude-module=gradio \
           --exclude-module=timm \
-          --exclude-module=PIL \
-          --exclude-module=Pillow \
           --exclude-module=sympy \
           --exclude-module=numba \
           --exclude-module=llvmlite \
@@ -151,8 +147,6 @@ jobs:
           --exclude-module=altair \
           --exclude-module=gradio \
           --exclude-module=timm \
-          --exclude-module=PIL \
-          --exclude-module=Pillow \
           --exclude-module=sympy \
           --exclude-module=numba \
           --exclude-module=llvmlite \
