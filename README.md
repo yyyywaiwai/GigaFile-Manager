@@ -29,7 +29,7 @@ GigaFile Manager は、GigaFile便の操作を簡単にするGUIアプリケー�
 
 ### 事前ビルド版のダウンロード（推奨）
 
-[Releases](https://github.com/your-username/gigafilelinkconv/releases)から最新版をダウンロードしてください。
+[Releases](https://github.com/yyyywaiwai/GigaFile-Manager/releases)から最新版をダウンロードしてください。
 
 - **Windows**: `gigafile-manager-windows-x64.zip`
 - **macOS (Apple Silicon)**: `gigafile-manager-macos-arm64.zip`
