@@ -1,7 +1,5 @@
 # GigaFile Manager
 
-![GigaFile Manager]
-
 GigaFile Manager は、GigaFile便の操作を簡単にするGUIアプリケーションです。ファイルのアップロードとダウンロードを直感的なインターフェースで管理できます。
 
 ## 特徴
