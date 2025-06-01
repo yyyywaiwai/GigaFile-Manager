@@ -1,0 +1,255 @@
+name: Build GigaFile Manager
+
+on:
+  push:
+    branches: [ main, master ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            platform: windows
+            arch: x64
+            executable_ext: .exe
+            artifact_name: gigafile-manager-windows-x64
+          - os: macos-latest
+            platform: macos
+            arch: arm64
+            executable_ext: .app
+            artifact_name: gigafile-manager-macos-arm64
+          - os: macos-13
+            platform: macos
+            arch: x64
+            executable_ext: .app
+            artifact_name: gigafile-manager-macos-intel
+          - os: ubuntu-latest
+            platform: linux
+            arch: x64
+            executable_ext: ""
+            artifact_name: gigafile-manager-linux-x64
+
+    runs-on: ${{ matrix.os }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Cache pip dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pyinstaller
+
+    - name: Build with PyInstaller (Windows)
+      if: matrix.platform == 'windows'
+      run: |
+        Remove-Item -Path build, dist, "*.spec" -Recurse -Force -ErrorAction SilentlyContinue
+        pyinstaller --windowed `
+          --name="GigaFile Manager" `
+          --onedir `
+          --icon=icon.ico `
+          --exclude-module=torch `
+          --exclude-module=torchvision `
+          --exclude-module=transformers `
+          --exclude-module=cv2 `
+          --exclude-module=opencv-python `
+          --exclude-module=matplotlib `
+          --exclude-module=pandas `
+          --exclude-module=numpy `
+          --exclude-module=scipy `
+          --exclude-module=sklearn `
+          --exclude-module=tensorflow `
+          --exclude-module=jedi `
+          --exclude-module=IPython `
+          --exclude-module=jupyter `
+          --exclude-module=notebook `
+          --exclude-module=altair `
+          --exclude-module=gradio `
+          --exclude-module=timm `
+          --exclude-module=PIL `
+          --exclude-module=Pillow `
+          --exclude-module=sympy `
+          --exclude-module=numba `
+          --exclude-module=llvmlite `
+          gigafiledl.py
+
+    - name: Build with PyInstaller (macOS)
+      if: matrix.platform == 'macos'
+      run: |
+        rm -rf build dist *.spec
+        pyinstaller --windowed \
+          --name="GigaFile Manager" \
+          --onedir \
+          --icon=icon.ico \
+          --exclude-module=torch \
+          --exclude-module=torchvision \
+          --exclude-module=transformers \
+          --exclude-module=cv2 \
+          --exclude-module=opencv-python \
+          --exclude-module=matplotlib \
+          --exclude-module=pandas \
+          --exclude-module=numpy \
+          --exclude-module=scipy \
+          --exclude-module=sklearn \
+          --exclude-module=tensorflow \
+          --exclude-module=jedi \
+          --exclude-module=IPython \
+          --exclude-module=jupyter \
+          --exclude-module=notebook \
+          --exclude-module=altair \
+          --exclude-module=gradio \
+          --exclude-module=timm \
+          --exclude-module=PIL \
+          --exclude-module=Pillow \
+          --exclude-module=sympy \
+          --exclude-module=numba \
+          --exclude-module=llvmlite \
+          gigafiledl.py
+
+    - name: Build with PyInstaller (Linux)
+      if: matrix.platform == 'linux'
+      run: |
+        rm -rf build dist *.spec
+        pyinstaller --windowed \
+          --name="GigaFile Manager" \
+          --onedir \
+          --icon=icon.ico \
+          --exclude-module=torch \
+          --exclude-module=torchvision \
+          --exclude-module=transformers \
+          --exclude-module=cv2 \
+          --exclude-module=opencv-python \
+          --exclude-module=matplotlib \
+          --exclude-module=pandas \
+          --exclude-module=numpy \
+          --exclude-module=scipy \
+          --exclude-module=sklearn \
+          --exclude-module=tensorflow \
+          --exclude-module=jedi \
+          --exclude-module=IPython \
+          --exclude-module=jupyter \
+          --exclude-module=notebook \
+          --exclude-module=altair \
+          --exclude-module=gradio \
+          --exclude-module=timm \
+          --exclude-module=PIL \
+          --exclude-module=Pillow \
+          --exclude-module=sympy \
+          --exclude-module=numba \
+          --exclude-module=llvmlite \
+          gigafiledl.py
+
+    - name: Check build result (Windows)
+      if: matrix.platform == 'windows'
+      run: |
+        if (Test-Path "dist/GigaFile Manager") {
+          Write-Host "Build successful! Application created at: dist/GigaFile Manager"
+          Get-ChildItem "dist/GigaFile Manager" -Recurse | Measure-Object -Property Length -Sum | ForEach-Object { "Total size: {0:N2} MB" -f ($_.Sum / 1MB) }
+        } else {
+          Write-Host "Build failed. Directory not found."
+          exit 1
+        }
+
+    - name: Check build result (macOS)
+      if: matrix.platform == 'macos'
+      run: |
+        if [ -d "dist/GigaFile Manager.app" ]; then
+          echo "Build successful! Application created at: dist/GigaFile Manager.app"
+          du -sh "dist/GigaFile Manager.app"
+        else
+          echo "Build failed. Check the output above for errors."
+          exit 1
+        fi
+
+    - name: Check build result (Linux)
+      if: matrix.platform == 'linux'
+      run: |
+        if [ -d "dist/GigaFile Manager" ]; then
+          echo "Build successful! Application created at: dist/GigaFile Manager"
+          du -sh "dist/GigaFile Manager"
+        else
+          echo "Build failed. Check the output above for errors."
+          exit 1
+        fi
+
+    - name: Create archive (Windows)
+      if: matrix.platform == 'windows'
+      run: |
+        Compress-Archive -Path "dist/GigaFile Manager" -DestinationPath "${{ matrix.artifact_name }}.zip"
+
+    - name: Create archive (macOS)
+      if: matrix.platform == 'macos'
+      run: |
+        cd dist
+        zip -r "../${{ matrix.artifact_name }}.zip" "GigaFile Manager.app"
+
+    - name: Create archive (Linux)
+      if: matrix.platform == 'linux'
+      run: |
+        cd dist
+        tar -czf "../${{ matrix.artifact_name }}.tar.gz" "GigaFile Manager"
+
+    - name: Upload Windows artifact
+      if: matrix.platform == 'windows'
+      uses: actions/upload-artifact@v3
+      with:
+        name: ${{ matrix.artifact_name }}
+        path: ${{ matrix.artifact_name }}.zip
+        retention-days: 30
+
+    - name: Upload macOS artifact
+      if: matrix.platform == 'macos'
+      uses: actions/upload-artifact@v3
+      with:
+        name: ${{ matrix.artifact_name }}
+        path: ${{ matrix.artifact_name }}.zip
+        retention-days: 30
+
+    - name: Upload Linux artifact
+      if: matrix.platform == 'linux'
+      uses: actions/upload-artifact@v3
+      with:
+        name: ${{ matrix.artifact_name }}
+        path: ${{ matrix.artifact_name }}.tar.gz
+        retention-days: 30
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    
+    steps:
+    - name: Download all artifacts
+      uses: actions/download-artifact@v3
+      
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          gigafile-manager-windows-x64/*.zip
+          gigafile-manager-macos-arm64/*.zip
+          gigafile-manager-macos-intel/*.zip
+          gigafile-manager-linux-x64/*.tar.gz
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
