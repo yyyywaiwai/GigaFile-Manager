@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 import threading
@@ -9,6 +11,80 @@ import re
 import zipfile
 import tempfile
 from datetime import datetime
+
+# GFile module integrated
+import concurrent.futures
+import functools
+import io
+import math
+import time
+import uuid
+from os import rename
+from subprocess import run
+import requests
+from bs4 import BeautifulSoup
+from requests.adapters import HTTPAdapter
+from requests_toolbelt import MultipartEncoder, StreamingIterator
+from tqdm import tqdm
+from urllib3.util.retry import Retry
+from shutil import copy2
+import subprocess
+import shutil
+import gzip
+import tarfile
+
+
+def requests_retry_session(
+    retries=5,
+    backoff_factor=0.2,
+    status_forcelist=None, # (500, 502, 504)
+    session=None,
+):
+    session = session or requests.Session()
+    retry = Retry(
+        total=retries,
+        backoff_factor=backoff_factor,
+        status_forcelist=status_forcelist,
+    )
+    adapter = HTTPAdapter(max_retries=retry)
+    session.mount('http://', adapter)
+    session.mount('https://', adapter)
+    return session
+
+
+def size_str_to_bytes(size_str):
+    if isinstance(size_str, int):
+        return size_str
+    m = re.search(r'^(?P<num>\d+) ?((?P<unit>[KMGTPEZY]?)(iB|B)?)$', size_str, re.IGNORECASE)
+    assert m
+    units = ("B", "K", "M", "G", "T", "P", "E", "Z", "Y")
+    unit = (m['unit'] or 'B').upper()
+    return int(math.pow(1024, units.index(unit)) * int(m['num']))
+
+
+def split_file(input_file, out, target_size=None, start=0, chunk_copy_size=1024*1024):
+    input_file = Path(input_file)
+    size = 0
+
+    input_size = input_file.stat().st_size
+    if target_size is None:
+        output_size = input_size - start
+    else:
+        output_size = min( target_size, input_size - start)
+
+    with open(input_file, 'rb') as f:
+        f.seek(start)
+        while True:
+            # print(f'{size / output_size * 100:.2f}%', end='\r')
+            if size == output_size: break
+            if size > output_size:
+                raise Exception(f'Size ({size}) is larger than {target_size} bytes!')
+            current_chunk_size = min(chunk_copy_size, output_size - size)
+            chunk = f.read(current_chunk_size)
+            if not chunk: break
+            size += len(chunk)
+            out.write(chunk)
+
 
 def bytes_to_size_str(bytes):
    if bytes == 0:
@@ -70,6 +146,306 @@ def split_file(input_file, out, target_size=None, start=0, chunk_copy_size=1024*
             size += len(chunk)
             out.write(chunk)
 
+
+class GFile:
+    def __init__(self, uri, progress=False, thread_num=4, chunk_size=1024*1024*10, chunk_copy_size=1024*1024, timeout=10,
+                 aria2=False, key=None, mute=False, progress_callback=None, **kwargs) -> None:
+        self.uri = uri
+        self.chunk_size = size_str_to_bytes(chunk_size)
+        self.chunk_copy_size = size_str_to_bytes(chunk_copy_size)
+        self.thread_num=thread_num
+        self.progress = progress
+        self.data = None
+        self.pbar = None
+        self.timeout = timeout
+        self.session = requests_retry_session()
+        self.session.request = functools.partial(self.session.request, timeout=self.timeout)
+        self.cookies = None
+        self.current_chunk = 0
+        self.aria2 = aria2
+        self.mute = mute
+        self.key = key
+        self.progress_callback = progress_callback
+
+
+    def upload_chunk(self, chunk_no, chunks):
+        bar = self.pbar[chunk_no % self.thread_num] if self.pbar else None
+        with io.BytesIO() as f:
+            split_file(self.uri, f, self.chunk_size, start=chunk_no * self.chunk_size, chunk_copy_size=self.chunk_copy_size)
+            chunk_size = f.tell()
+            f.seek(0)
+            fields = {
+                "id": self.token,
+                "name": Path(self.uri).name,
+                "chunk": str(chunk_no),
+                "chunks": str(chunks),
+                "lifetime": "100",
+                "file": ("blob", f, "application/octet-stream"),
+            }
+            form_data = MultipartEncoder(fields)
+            headers = {
+                "content-type": form_data.content_type,
+            }
+            # convert the form-data into a binary string, this way we can control/throttle its read() behavior
+            form_data_binary = form_data.to_string()
+            del form_data
+
+        size = len(form_data_binary)
+        if bar:
+            bar.desc = f'chunk {chunk_no + 1}/{chunks}'
+            bar.reset(total=size)
+            # bar.refresh()
+
+        def gen():
+            offset = 0
+            while True:
+                if offset < size:
+                    update_tick = 1024 * 128
+                    yield form_data_binary[offset:offset+update_tick]
+                    if bar:
+                        bar.update(min(update_tick, size - offset))
+                        bar.refresh()
+                    offset += update_tick
+                else:
+                    if chunk_no != self.current_chunk:
+                        time.sleep(0.01)
+                    else:
+                        time.sleep(0.1)
+                        break
+        while True:
+            try:
+                streamer = StreamingIterator(size, gen())
+                resp = self.session.post(f"https://{self.server}/upload_chunk.php", data=streamer, headers=headers)
+            except Exception as ex:
+                if not self.mute:
+                    print(ex)
+                    print('Retrying...')
+            else:
+                break
+
+        resp_data = resp.json()
+        self.current_chunk += 1
+
+        # プログレスコールバック実行（アップロード用）
+        if self.progress_callback and hasattr(self, 'total_chunks') and hasattr(self, 'file_size'):
+            progress_percent = int((self.current_chunk / self.total_chunks) * 100)
+            uploaded_size = self.current_chunk * self.chunk_size
+            if uploaded_size > self.file_size:
+                uploaded_size = self.file_size
+            result = self.progress_callback(progress_percent, uploaded_size, self.file_size)
+            # コールバックがFalseを返した場合（停止要求）
+            if result is False:
+                self.failed = True
+                return
+
+        if 'url' in resp_data:
+            self.data = resp_data
+        if 'status' not in resp_data or resp_data['status']:
+            print(resp_data)
+            self.failed = True
+
+
+    def upload(self):
+        self.token = uuid.uuid1().hex
+        self.pbar = None
+        self.failed = False
+        assert Path(self.uri).exists()
+        size = Path(self.uri).stat().st_size
+        chunks = math.ceil(size / self.chunk_size)
+        
+        # プログレスコールバック用の情報を保存
+        self.file_size = size
+        self.total_chunks = chunks
+        
+        print(f'Filesize {bytes_to_size_str(size)}, chunk size: {bytes_to_size_str(self.chunk_size)}, total chunks: {chunks}')
+
+        if self.progress:
+            self.pbar = []
+            for i in range(self.thread_num):
+                self.pbar.append(tqdm(total=size, unit="B", unit_scale=True, leave=False, unit_divisor=1024, ncols=100, position=i))
+
+        self.server = re.search(r'var server = "(.+?)"', self.session.get('https://gigafile.nu/').text)[1]
+
+        # upload the first chunk to set cookies properly.
+        self.upload_chunk(0, chunks)
+
+        # upload second to second last chunk(s)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=self.thread_num) as ex:
+            futures = {ex.submit(self.upload_chunk, i, chunks): i for i in range(1, chunks)}
+            try:
+                for future in concurrent.futures.as_completed(futures):
+                    if self.failed:
+                        print('Failed!')
+                        for future in futures:
+                            future.cancel()
+                        return
+            except KeyboardInterrupt:
+                print('\nUser cancelled the operation.')
+                for future in futures:
+                    future.cancel()
+                return
+
+        # upload last chunk if not already
+        # if chunks > 1:
+        #     # print('\nupload the last chunk in single thread')
+        #     self.upload_chunk(chunks - 1, chunks)
+
+        if self.pbar:
+            for bar in self.pbar:
+                bar.close()
+        print('')
+        if 'url' not in self.data:
+            print('Something went wrong. Upload failed.', self.data)
+        return self # for chain
+
+
+    def get_download_page(self):
+        if not self.data or not 'url' in self.data:
+            return
+        f = Path(self.uri)
+        print(f"Finished at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}, filename: {f.name}, size: {bytes_to_size_str(f.stat().st_size)}")
+        print(self.data['url'])
+        return self.data['url']
+
+
+    def download(self, odir=None,):
+        output = None
+        m = re.search(r'^https?:\/\/\d+?\.gigafile\.nu\/([a-z0-9-]+)$', self.uri)
+        if not m:
+            print('Invalid URL.')
+            return
+        r = self.session.get(self.uri) # setup cookie
+
+        files_info = []
+
+        try:
+            soup = BeautifulSoup(r.text, 'html.parser')
+            if soup.select_one('#contents_matomete'):
+                print('Matomete mode. Files will be downloaded one by one.')
+                for ele in soup.select('.matomete_file'):
+                    web_name = ele.select_one('.matomete_file_info > span:nth-child(2)').text.strip()
+                    file_id = re.search(r'download\(\d+, *\'(.+?)\'', ele.select_one('.download_panel_btn_dl')['onclick'])[1]
+                    size_str = re.search(r'（(.+?)）', ele.select_one('.matomete_file_info > span:nth-child(3)').text.strip())[1]
+                    files_info.append((web_name, size_str, file_id))
+            else:
+                file_id = m[1]
+                size_str = soup.select_one('.dl_size').text.strip()
+                web_name = soup.select_one('#dl').text.strip()
+                files_info.append((web_name, size_str, file_id))
+        except Exception as ex:
+            print(f'ERROR! Failed to parse the page {self.uri}.')
+            print(ex)
+            print('Please report it back to the developer.')
+            return
+
+        downloaded = []
+
+        if len(files_info) > 1:
+            print(f'Found {len(files_info)} files in the page.')
+
+        for idx, (web_name, size_str, file_id) in enumerate(files_info, 1):
+            print(f'Name: {web_name}, size: {size_str}, id: {file_id}')
+            # only sanitize web filename. User provided output string(s) are on their own.
+            if not output:
+                filename = re.sub(r'[\\/:*?"<>|]', '_', web_name)
+            else:
+                if len(files_info) > 1:
+                    # if there are more than one files, append idx to the filename
+                    filename = output + f'_{idx}'
+                else:
+                    filename = output
+
+            download_url = self.uri.rsplit('/', 1)[0] + '/download.php?file=' + file_id
+            if self.key:
+                download_url += f'&dlkey={self.key}'
+            if self.aria2:
+                cookie_str = "; ".join([f"{cookie.name}={cookie.value}" for cookie in self.session.cookies])
+                cmd = ['aria2c', download_url, '--header', f'Cookie: {cookie_str}', '-o', filename]
+                cmd.extend(self.aria2.split(' '))
+                run(cmd)
+                continue
+
+            # 出力ディレクトリを確保
+            uploads_dir = Path(odir) if odir else Path('./uploads')
+            uploads_dir.mkdir(exist_ok=True)
+            
+            # 一時ファイルと最終ファイルパスを出力ディレクトリ内に設定
+            final_path = uploads_dir / filename
+            temp = str(final_path) + '.dl'
+            
+            with self.session.get(download_url, stream=True) as r:
+                r.raise_for_status()
+                filesize = int(r.headers['Content-Length'])
+                downloaded_size = 0
+                
+                # GUI進捗コールバックでファイル名とサイズを通知（ダウンロード開始時）
+                if self.progress_callback:
+                    self.progress_callback(0, web_name, 0, filesize)
+                
+                if self.progress:
+                    desc = filename if len(filename) <= 20 else filename[0:11] + '..' + filename[-7:]
+                    self.pbar = tqdm(total=filesize, unit='B', unit_scale=True, unit_divisor=1024, desc=desc)
+                
+                with open(temp, 'wb') as f:
+                    for chunk in r.iter_content(chunk_size=self.chunk_copy_size):
+                        f.write(chunk)
+                        downloaded_size += len(chunk)
+                        
+                        # プログレスバー更新
+                        if self.pbar: 
+                            self.pbar.update(len(chunk))
+                        
+                        # GUI進捗コールバック実行（ファイル名、ダウンロードサイズ、合計サイズ付き）
+                        if self.progress_callback:
+                            progress_percent = int((downloaded_size / filesize) * 100) if filesize > 0 else 0
+                            result = self.progress_callback(progress_percent, web_name, downloaded_size, filesize)
+                            # コールバックがFalseを返した場合（停止要求）
+                            if result is False:
+                                break
+                            
+            if self.pbar: self.pbar.close()
+
+            filesize_downloaded = Path(temp).stat().st_size
+            print(f'Filesize check: expected: {filesize}; actual: {filesize_downloaded}', end=' ')
+            if filesize == filesize_downloaded:
+                print("Succeeded.")
+                # 一時ファイルを最終ファイル名にリネーム
+                rename(temp, final_path)
+                filename = final_path
+                ext = Path(filename).suffix.lower()
+                if ext in ['.zip', '.7z', '.gz', '.tar']:
+
+                    def try_extract(cmd, timeout=30):
+                        try:
+                            print(f"Running command: {' '.join(map(str, cmd))}")
+                            result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout)
+                            return result.returncode == 0
+                        except Exception as e:
+                            print(f"Extraction failed: {e}")
+                            return False
+
+                    extracted = False
+                    extract_dir = uploads_dir
+                    if ext == '.zip' or ext == '.7z' or ext == '.gz' or ext == '.tar':
+                        # Try to extract using unar first (unar supports zip, 7z, tar, gz)
+                        print(f"Trying to extract {filename} with unar...")
+                        cmd = ['unar', '-o', str(extract_dir), filename]
+                        result = try_extract(cmd)
+                        if result is not False:
+                            print(f"Extracted {filename} with unar.")
+                            try:
+                                Path(filename).unlink()
+                                print(f"Deleted archive file: {filename}")
+                            except Exception as e:
+                                print(f"Failed to delete archive file: {e}")
+                            extracted = True
+                        if not extracted:
+                            print(f"Failed to extract {filename} with unar.")
+            else:
+                print(f"Downloaded file is corrupt. Please check the broken file at {temp} and delete it yourself if needed.")
+            downloaded.append(filename)
+        return downloaded
+
 class GigaFileManager:
     def __init__(self, root):
         self.root = root
@@ -87,6 +463,10 @@ class GigaFileManager:
         # アクティブな処理
         self.active_downloads = {}
         self.active_uploads = {}
+        
+        # 停止フラグ
+        self.stop_downloads = False
+        self.stop_uploads = False
         
         # モード管理
         self.current_mode = tk.StringVar(value="download")
@@ -232,16 +612,17 @@ class GigaFileManager:
         progress_frame.grid(row=0, column=0, columnspan=2, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(0, 10))
         
         # プログレステーブル
-        columns = ("種別", "ファイル/URL", "状態", "進行率", "操作")
+        columns = ("種別", "ファイル/URL", "状態", "進行率", "ファイルサイズ", "操作")
         self.progress_tree = ttk.Treeview(progress_frame, columns=columns, show="headings", height=10)
         
         for col in columns:
             self.progress_tree.heading(col, text=col)
             
         self.progress_tree.column("種別", width=100)
-        self.progress_tree.column("ファイル/URL", width=400)
-        self.progress_tree.column("状態", width=100)
+        self.progress_tree.column("ファイル/URL", width=300)
+        self.progress_tree.column("状態", width=150)
         self.progress_tree.column("進行率", width=100)
+        self.progress_tree.column("ファイルサイズ", width=100)
         self.progress_tree.column("操作", width=80)
         
         progress_scrollbar = ttk.Scrollbar(progress_frame, orient="vertical", command=self.progress_tree.yview)
@@ -337,7 +718,7 @@ class GigaFileManager:
         item = self.progress_tree.selection()[0] if self.progress_tree.selection() else None
         if item:
             values = self.progress_tree.item(item, "values")
-            if len(values) >= 4 and values[2] == "完了" and values[0] == "アップロード":
+            if len(values) >= 6 and values[2] == "完了" and values[0] == "アップロード":
                 url = values[1]
                 if url.startswith("http"):
                     self.copy_to_clipboard(url)
@@ -352,7 +733,7 @@ class GigaFileManager:
         urls = []
         for item in selected:
             values = self.progress_tree.item(item, "values")
-            if len(values) >= 4 and values[2] == "完了" and values[0] == "アップロード":
+            if len(values) >= 6 and values[2] == "完了" and values[0] == "アップロード":
                 url = values[1]
                 if url.startswith("http"):
                     urls.append(url)
@@ -368,7 +749,7 @@ class GigaFileManager:
         urls = []
         for item in self.progress_tree.get_children():
             values = self.progress_tree.item(item, "values")
-            if len(values) >= 4 and values[2] == "完了" and values[0] == "アップロード":
+            if len(values) >= 6 and values[2] == "完了" and values[0] == "アップロード":
                 url = values[1]
                 if url.startswith("http"):
                     urls.append(url)
@@ -433,9 +814,12 @@ class GigaFileManager:
                 return
                 
         self.download_button.config(state="disabled")
+        self.stop_downloads = False
         self.log_message(f"{len(urls)}個のURLのダウンロードを開始します...")
         
         for url_data in urls:
+            if self.stop_downloads:
+                break
             self.start_single_download(url_data, download_dir)
             
     def start_uploads(self):
@@ -458,18 +842,21 @@ class GigaFileManager:
             return
                 
         self.upload_button.config(state="disabled")
+        self.stop_uploads = False
         
         # 複数ファイルかつZIP化オプションが有効な場合
         if len(valid_files) > 1 and self.auto_zip.get():
             self.log_message(f"{len(valid_files)}個のファイルをZIP化してアップロードします...")
             zip_file_path = self.create_zip_file(valid_files)
-            if zip_file_path:
+            if zip_file_path and not self.stop_uploads:
                 self.start_single_upload(zip_file_path, is_temp_file=True)
             else:
                 self.upload_button.config(state="normal")
         else:
             self.log_message(f"{len(valid_files)}個のファイルのアップロードを開始します...")
             for file_path in valid_files:
+                if self.stop_uploads:
+                    break
                 self.start_single_upload(file_path)
             
     def start_single_download(self, url_data, download_dir):
@@ -477,7 +864,7 @@ class GigaFileManager:
         display_text = f"{url} [PW]" if password else url
         
         # プログレステーブルにエントリ追加
-        item_id = self.progress_tree.insert("", "end", values=("ダウンロード", display_text, "準備中", "0%", ""))
+        item_id = self.progress_tree.insert("", "end", values=("ダウンロード", display_text, "準備中", "0%", "", ""))
         
         # ダウンロードスレッド開始
         thread = threading.Thread(target=self.download_worker, args=(url, password, download_dir, item_id))
@@ -521,7 +908,7 @@ class GigaFileManager:
         filename = os.path.basename(file_path)
         
         # プログレステーブルにエントリ追加
-        item_id = self.progress_tree.insert("", "end", values=("アップロード", filename, "準備中", "0%", ""))
+        item_id = self.progress_tree.insert("", "end", values=("アップロード", filename, "準備中", "0%", "", ""))
         
         # アップロードスレッド開始
         thread = threading.Thread(target=self.upload_worker, args=(file_path, item_id, is_temp_file))
@@ -532,13 +919,18 @@ class GigaFileManager:
         
     def download_worker(self, url, password, download_dir, item_id):
         try:
+            # 停止チェック
+            if self.stop_downloads:
+                self.progress_queue.put(("update", item_id, "ダウンロード", "停止", "キャンセル", "0%", "", ""))
+                return
+                
             display_text = f"{url} [PW]" if password else url
-            self.progress_queue.put(("update", item_id, "ダウンロード", display_text, "開始", "0%", ""))
+            self.progress_queue.put(("update", item_id, "ダウンロード", display_text, "開始", "0%", "", ""))
             
             # URLからファイルIDを抽出
             file_id_match = re.search(r'^https?:\/\/\d+?\.gigafile\.nu\/([a-z0-9-]+)$', url)
             if not file_id_match:
-                self.progress_queue.put(("update", item_id, "ダウンロード", "エラー", "失敗", "0%", ""))
+                self.progress_queue.put(("update", item_id, "ダウンロード", "エラー", "失敗", "0%", "", ""))
                 self.progress_queue.put(("log", f"無効なURL形式: {url}"))
                 return
             
@@ -548,27 +940,85 @@ class GigaFileManager:
             file_id_dir = os.path.join(download_dir, file_id)
             os.makedirs(file_id_dir, exist_ok=True)
             
-            # GFileインスタンス作成（パスワードがある場合はkeyパラメータに渡す）
-            gfile = GFile(url, progress=False, mute=True, key=password)
+            # 速度計算用の変数
+            speed_samples = []
+            last_update_time = time.time()
+            last_downloaded_size = 0
+            last_display_update_time = 0
+            last_status_text = "進行中"
             
-            self.progress_queue.put(("update", item_id, "ダウンロード", display_text, "進行中", "0%", ""))
+            # プログレス更新用コールバック関数（速度計算付き）
+            def progress_callback(percent, current_filename=None, downloaded_size=0, total_size=0):
+                nonlocal speed_samples, last_update_time, last_downloaded_size, last_display_update_time, last_status_text
+                
+                # 停止チェック
+                if self.stop_downloads:
+                    return False  # ダウンロード停止シグナル
+                
+                filename_display = current_filename if current_filename else display_text
+                current_time = time.time()
+                
+                # 速度計算（1秒以上経過した場合のみ）
+                if current_time - last_update_time >= 1.0 and downloaded_size > last_downloaded_size:
+                    speed = (downloaded_size - last_downloaded_size) / (current_time - last_update_time)
+                    speed_samples.append(speed)
+                    if len(speed_samples) > 5:  # 直近5サンプルの平均を使用
+                        speed_samples = speed_samples[-5:]
+                    
+                    avg_speed = sum(speed_samples) / len(speed_samples)
+                    remaining_bytes = total_size - downloaded_size
+                    eta_seconds = remaining_bytes / avg_speed if avg_speed > 0 else 0
+                    
+                    # ETAを時:分:秒形式に変換
+                    eta_hours = int(eta_seconds // 3600)
+                    eta_minutes = int((eta_seconds % 3600) // 60)
+                    eta_secs = int(eta_seconds % 60)
+                    eta_str = f"{eta_hours:02d}:{eta_minutes:02d}:{eta_secs:02d}"
+                    
+                    last_status_text = f"進行中 ({bytes_to_size_str(avg_speed)}/s, ETA {eta_str})"
+                    
+                    last_update_time = current_time
+                    last_downloaded_size = downloaded_size
+                    last_display_update_time = current_time
+                
+                # UIの更新は0.5秒間隔で制限（チカチカ防止）
+                if current_time - last_display_update_time >= 0.5:
+                    # ファイルサイズ表示
+                    file_size_str = bytes_to_size_str(total_size) if total_size > 0 else ""
+                    
+                    self.progress_queue.put(("update", item_id, "ダウンロード", filename_display, last_status_text, f"{percent}%", file_size_str, ""))
+                    last_display_update_time = current_time
+                
+                return True  # 継続シグナル
+            
+            # GFileインスタンス作成（パスワードがある場合はkeyパラメータに渡す）
+            gfile = GFile(url, progress=False, mute=True, key=password, progress_callback=progress_callback)
+            
+            self.progress_queue.put(("update", item_id, "ダウンロード", display_text, "進行中", "0%", "", ""))
             
             # ファイルIDディレクトリにダウンロード実行
             downloaded_files = gfile.download(odir=file_id_dir)
             
+            # 停止チェック
+            if self.stop_downloads:
+                self.progress_queue.put(("update", item_id, "ダウンロード", "停止", "キャンセル", "0%", "", ""))
+                pw_text = " [パスワード付き]" if password else ""
+                self.progress_queue.put(("log", f"ダウンロード停止{pw_text}: {url}"))
+                return
+            
             if downloaded_files:
                 filename = str(downloaded_files[0]) if downloaded_files else "不明"
-                self.progress_queue.put(("update", item_id, "ダウンロード", filename, "完了", "100%", ""))
+                self.progress_queue.put(("update", item_id, "ダウンロード", filename, "完了", "100%", "", ""))
                 pw_text = " [パスワード付き]" if password else ""
                 self.progress_queue.put(("log", f"ダウンロード完了{pw_text}: {url} -> {filename} (フォルダ: {file_id})"))
             else:
-                self.progress_queue.put(("update", item_id, "ダウンロード", "エラー", "失敗", "0%", ""))
+                self.progress_queue.put(("update", item_id, "ダウンロード", "エラー", "失敗", "0%", "", ""))
                 pw_text = " [パスワード付き]" if password else ""
                 self.progress_queue.put(("log", f"ダウンロード失敗{pw_text}: {url}"))
                 
         except Exception as e:
             display_text = f"{url} [PW]" if password else url
-            self.progress_queue.put(("update", item_id, "ダウンロード", "エラー", "失敗", "0%", ""))
+            self.progress_queue.put(("update", item_id, "ダウンロード", "エラー", "失敗", "0%", "", ""))
             pw_text = " [パスワード付き]" if password else ""
             self.progress_queue.put(("log", f"ダウンロードエラー{pw_text}: {url} - {str(e)}"))
         finally:
@@ -581,33 +1031,100 @@ class GigaFileManager:
                 
     def upload_worker(self, file_path, item_id, is_temp_file=False):
         try:
+            # 停止チェック
+            if self.stop_uploads:
+                self.progress_queue.put(("update", item_id, "アップロード", "停止", "キャンセル", "0%", "", ""))
+                return
+                
             filename = os.path.basename(file_path)
+            file_size = os.path.getsize(file_path)
+            file_size_str = bytes_to_size_str(file_size)
             
-            self.progress_queue.put(("update", item_id, "アップロード", filename, "開始", "0%", ""))
+            self.progress_queue.put(("update", item_id, "アップロード", filename, "開始", "0%", file_size_str, ""))
             
-            # GFileインスタンス作成（アップロード用）
-            gfile = GFile(file_path, progress=False, mute=True)
+            # 停止チェック
+            if self.stop_uploads:
+                self.progress_queue.put(("update", item_id, "アップロード", "停止", "キャンセル", "0%", file_size_str, ""))
+                return
             
-            self.progress_queue.put(("update", item_id, "アップロード", filename, "進行中", "50%", ""))
+            # 速度計算用の変数
+            speed_samples = []
+            last_update_time = time.time()
+            last_uploaded_size = 0
+            last_display_update_time = 0
+            last_status_text = "進行中"
+            
+            # プログレス更新用コールバック関数（アップロード用）
+            def upload_progress_callback(percent, uploaded_size=0, total_size=0):
+                nonlocal speed_samples, last_update_time, last_uploaded_size, last_display_update_time, last_status_text
+                
+                # 停止チェック
+                if self.stop_uploads:
+                    return False  # アップロード停止シグナル
+                
+                current_time = time.time()
+                
+                # 速度計算（1秒以上経過した場合のみ）
+                if current_time - last_update_time >= 1.0 and uploaded_size > last_uploaded_size:
+                    speed = (uploaded_size - last_uploaded_size) / (current_time - last_update_time)
+                    speed_samples.append(speed)
+                    if len(speed_samples) > 5:  # 直近5サンプルの平均を使用
+                        speed_samples = speed_samples[-5:]
+                    
+                    avg_speed = sum(speed_samples) / len(speed_samples)
+                    remaining_bytes = total_size - uploaded_size
+                    eta_seconds = remaining_bytes / avg_speed if avg_speed > 0 else 0
+                    
+                    # ETAを時:分:秒形式に変換
+                    eta_hours = int(eta_seconds // 3600)
+                    eta_minutes = int((eta_seconds % 3600) // 60)
+                    eta_secs = int(eta_seconds % 60)
+                    eta_str = f"{eta_hours:02d}:{eta_minutes:02d}:{eta_secs:02d}"
+                    
+                    last_status_text = f"進行中 ({bytes_to_size_str(avg_speed)}/s, ETA {eta_str})"
+                    
+                    last_update_time = current_time
+                    last_uploaded_size = uploaded_size
+                    last_display_update_time = current_time
+                
+                # UIの更新は0.5秒間隔で制限（チカチカ防止）
+                if current_time - last_display_update_time >= 0.5:
+                    self.progress_queue.put(("update", item_id, "アップロード", filename, last_status_text, f"{percent}%", file_size_str, ""))
+                    last_display_update_time = current_time
+                
+                return True  # 継続シグナル
+            
+            # GFileインスタンス作成（アップロード用、進捗コールバック付き）
+            gfile = GFile(file_path, progress=False, mute=True, progress_callback=upload_progress_callback)
+            
+            self.progress_queue.put(("update", item_id, "アップロード", filename, "進行中", "0%", file_size_str, ""))
             
             # アップロード実行
             result = gfile.upload()
             
+            # 停止チェック
+            if self.stop_uploads:
+                self.progress_queue.put(("update", item_id, "アップロード", "停止", "キャンセル", "0%", file_size_str, ""))
+                self.progress_queue.put(("log", f"アップロード停止: {filename}"))
+                return
+            
             if result and hasattr(result, 'data') and result.data:
                 url = result.get_download_page()
                 if url:
-                    self.progress_queue.put(("update", item_id, "アップロード", url, "完了", "100%", "コピー"))
+                    self.progress_queue.put(("update", item_id, "アップロード", url, "完了", "100%", file_size_str, "コピー"))
                     self.progress_queue.put(("log", f"アップロード完了: {filename} -> {url}"))
                 else:
-                    self.progress_queue.put(("update", item_id, "アップロード", "エラー", "失敗", "0%", ""))
+                    self.progress_queue.put(("update", item_id, "アップロード", "エラー", "失敗", "0%", file_size_str, ""))
                     self.progress_queue.put(("log", f"アップロード失敗: {filename} (URLの取得に失敗)"))
             else:
-                self.progress_queue.put(("update", item_id, "アップロード", "エラー", "失敗", "0%", ""))
+                self.progress_queue.put(("update", item_id, "アップロード", "エラー", "失敗", "0%", file_size_str, ""))
                 self.progress_queue.put(("log", f"アップロード失敗: {filename}"))
                 
         except Exception as e:
             filename = os.path.basename(file_path)
-            self.progress_queue.put(("update", item_id, "アップロード", "エラー", "失敗", "0%", ""))
+            file_size = os.path.getsize(file_path) if os.path.exists(file_path) else 0
+            file_size_str = bytes_to_size_str(file_size)
+            self.progress_queue.put(("update", item_id, "アップロード", "エラー", "失敗", "0%", file_size_str, ""))
             self.progress_queue.put(("log", f"アップロードエラー: {filename} - {str(e)}"))
         finally:
             # 一時ファイルの場合は削除
@@ -626,12 +1143,18 @@ class GigaFileManager:
                 self.progress_queue.put(("enable_upload_button",))
                 
     def stop_all_downloads(self):
-        # 実際の停止処理は困難なため、ログにメッセージを表示
-        self.log_message("ダウンロード停止が要求されました。進行中のダウンロードは完了まで継続されます。")
+        self.stop_downloads = True
+        self.log_message("ダウンロード停止が要求されました。")
+        
+        # ボタンを有効化
+        self.download_button.config(state="normal")
         
     def stop_all_uploads(self):
-        # 実際の停止処理は困難なため、ログにメッセージを表示
-        self.log_message("アップロード停止が要求されました。進行中のアップロードは完了まで継続されます。")
+        self.stop_uploads = True
+        self.log_message("アップロード停止が要求されました。")
+        
+        # ボタンを有効化
+        self.upload_button.config(state="normal")
         
     def check_progress(self):
         try:
@@ -640,8 +1163,8 @@ class GigaFileManager:
                     message = self.progress_queue.get_nowait()
                     
                     if message[0] == "update":
-                        _, item_id, type_text, filename, status, progress, action = message
-                        self.progress_tree.item(item_id, values=(type_text, filename, status, progress, action))
+                        _, item_id, type_text, filename, status, progress, file_size, action = message
+                        self.progress_tree.item(item_id, values=(type_text, filename, status, progress, file_size, action))
                         
                     elif message[0] == "log":
                         self.log_message(message[1])
