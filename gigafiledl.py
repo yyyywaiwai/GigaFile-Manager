@@ -9,7 +9,66 @@ import re
 import zipfile
 import tempfile
 from datetime import datetime
-from gfile import GFile
+
+def bytes_to_size_str(bytes):
+   if bytes == 0:
+       return "0B"
+   units = ("B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB")
+   i = int(math.floor(math.log(bytes, 1024)))
+   p = math.pow(1024, i)
+   return f"{bytes/p:.02f} {units[i]}"
+
+
+def size_str_to_bytes(size_str):
+    if isinstance(size_str, int):
+        return size_str
+    m = re.search(r'^(?P<num>\d+) ?((?P<unit>[KMGTPEZY]?)(iB|B)?)$', size_str, re.IGNORECASE)
+    assert m
+    units = ("B", "K", "M", "G", "T", "P", "E", "Z", "Y")
+    unit = (m['unit'] or 'B').upper()
+    return int(math.pow(1024, units.index(unit)) * int(m['num']))
+
+
+def requests_retry_session(
+    retries=5,
+    backoff_factor=0.2,
+    status_forcelist=None, # (500, 502, 504)
+    session=None,
+):
+    session = session or requests.Session()
+    retry = Retry(
+        total=retries,
+        backoff_factor=backoff_factor,
+        status_forcelist=status_forcelist,
+    )
+    adapter = HTTPAdapter(max_retries=retry)
+    session.mount('http://', adapter)
+    session.mount('https://', adapter)
+    return session
+
+
+def split_file(input_file, out, target_size=None, start=0, chunk_copy_size=1024*1024):
+    input_file = Path(input_file)
+    size = 0
+
+    input_size = input_file.stat().st_size
+    if target_size is None:
+        output_size = input_size - start
+    else:
+        output_size = min( target_size, input_size - start)
+
+    with open(input_file, 'rb') as f:
+        f.seek(start)
+        while True:
+            # print(f'{size / output_size * 100:.2f}%', end='\r')
+            if size == output_size: break
+            if size > output_size:
+                raise Exception(f'Size ({size}) is larger than {target_size} bytes!')
+            current_chunk_size = min(chunk_copy_size, output_size - size)
+            chunk = f.read(current_chunk_size)
+            if not chunk: break
+            size += len(chunk)
+            out.write(chunk)
 
 class GigaFileManager:
     def __init__(self, root):
