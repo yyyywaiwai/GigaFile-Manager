@@ -9,8 +9,13 @@ import tempfile
 from datetime import datetime
 import glob
 
+# PyInstaller multiprocessing support
+import multiprocessing
+if sys.platform.startswith('win') and getattr(sys, 'frozen', False):
+    # Windows frozen application support
+    multiprocessing.freeze_support()
+
 # GFile module integrated
-import concurrent.futures
 import functools
 import io
 import math
@@ -209,29 +214,38 @@ class GFile:
         # upload the first chunk to set cookies properly.
         self.upload_chunk(0, chunks)
 
-        # upload second to second last chunk(s)
-        with concurrent.futures.ThreadPoolExecutor(max_workers=self.thread_num) as ex:
-            futures = {ex.submit(self.upload_chunk, i, chunks): i for i in range(1, chunks)}
-            try:
-                for future in concurrent.futures.as_completed(futures):
-                    if self.failed:
-                        print('Failed!')
-                        for future in futures:
-                            future.cancel()
-                        return
-            except KeyboardInterrupt:
-                print('\nUser cancelled the operation.')
-                for future in futures:
-                    future.cancel()
-                return
+        # upload second to second last chunk(s) - シングルスレッド版（PyInstaller対応）
+        self.upload_failed = False
+        
+        try:
+            # シングルスレッドで順次アップロード（PyInstaller環境で安定）
+            for i in range(1, chunks):
+                if self.failed or self.upload_failed:
+                    break
+                try:
+                    self.upload_chunk(i, chunks)
+                except Exception as e:
+                    print(f"Upload chunk {i} failed: {e}")
+                    self.upload_failed = True
+                    break
+                
+        except KeyboardInterrupt:
+            print('\nUser cancelled the operation.')
+            self.upload_failed = True
+            return
 
 
         if self.pbar:
             for bar in self.pbar:
                 bar.close()
         print('')
-        if 'url' not in self.data:
+        
+        if self.failed or self.upload_failed:
+            print('Upload failed.')
+            return None
+        elif 'url' not in self.data:
             print('Something went wrong. Upload failed.', self.data)
+            return None
         return self # for chain
 
 
@@ -634,6 +648,10 @@ def cmd_upload(args):
 
 
 def main():
+    # PyInstaller multiprocessing support
+    if getattr(sys, 'frozen', False):
+        multiprocessing.freeze_support()
+        
     parser = argparse.ArgumentParser(
         description='GigaFile便のCLIクライアント',
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -687,16 +705,41 @@ def main():
     
     try:
         if args.command == 'download':
-            return cmd_download(args)
+            result = cmd_download(args)
         elif args.command == 'upload':
-            return cmd_upload(args)
+            result = cmd_upload(args)
+        else:
+            result = 1
+            
+        # 明示的に終了処理
+        if getattr(sys, 'frozen', False):
+            # PyInstaller環境では強制終了
+            import atexit
+            atexit._run_exitfuncs()
+            os._exit(result)
+        return result
+        
     except KeyboardInterrupt:
         print("\n\n処理がキャンセルされました。")
+        if getattr(sys, 'frozen', False):
+            os._exit(1)
         return 1
     except Exception as e:
         print(f"予期しないエラー: {e}")
+        if getattr(sys, 'frozen', False):
+            os._exit(1)
         return 1
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    # PyInstaller環境でのmultiprocessing対応
+    if getattr(sys, 'frozen', False):
+        multiprocessing.freeze_support()
+    
+    exit_code = main()
+    
+    # PyInstaller環境では強制終了でresource_trackerエラーを回避
+    if getattr(sys, 'frozen', False):
+        os._exit(exit_code)
+    else:
+        sys.exit(exit_code)

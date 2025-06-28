@@ -8,8 +8,8 @@ rm -rf build-cli dist-cli gigafilecli.spec
 # CLI用ビルドディレクトリ作成
 mkdir -p build-cli dist-cli
 
-# 最小限のPyInstallerでCLIアプリケーションをビルド
-pyinstaller --onefile \
+# 最小限のPyInstallerでCLIアプリケーションをビルド（高速起動版）
+pyinstaller --onedir \
     --name="gigafile" \
     --distpath=dist-cli \
     --workpath=build-cli \
@@ -17,6 +17,8 @@ pyinstaller --onefile \
     --console \
     --strip \
     --noupx \
+    --optimize=2 \
+    --clean \
     --exclude-module=tkinter \
     --exclude-module=torch \
     --exclude-module=torchvision \
@@ -104,14 +106,46 @@ pyinstaller --onefile \
     gigafilecli.py
 
 # ビルド結果を確認
-if [ -f "dist-cli/gigafilecli" ]; then
-    echo "Build successful! CLI application created at: dist-cli/gigafilecli"
-    ls -lh dist-cli/gigafilecli
-    echo "File size:"
-    du -sh dist-cli/gigafilecli
+if [ -f "dist-cli/gigafile/gigafile" ]; then
+    echo "Build successful! CLI application created at: dist-cli/gigafile/"
+    ls -lh dist-cli/gigafile/gigafile
+    echo "Directory size:"
+    du -sh dist-cli/gigafile
     echo ""
-    echo "You can run the CLI with: ./dist-cli/gigafilecli --help"
-    echo "Or copy to /usr/local/bin for system-wide access: sudo cp dist-cli/gigafilecli /usr/local/bin/"
+    echo "You can run the CLI with: ./dist-cli/gigafile/gigafile --help"
+    echo "Or copy to /usr/local/bin for system-wide access: sudo cp dist-cli/gigafile/gigafile /usr/local/bin/"
+    echo ""
+    echo "Creating single-file version for easy distribution..."
+    # 単一ファイル版も作成（配布用）
+    pyinstaller --onefile \
+        --name="gigafile-portable" \
+        --distpath=dist-cli \
+        --workpath=build-cli \
+        --noconfirm \
+        --console \
+        --strip \
+        --noupx \
+        --optimize=2 \
+        --clean \
+        --exclude-module=tkinter \
+        --exclude-module=torch \
+        --exclude-module=transformers \
+        --exclude-module=matplotlib \
+        --exclude-module=pandas \
+        --exclude-module=numpy \
+        --exclude-module=scipy \
+        --exclude-module=sklearn \
+        --exclude-module=tensorflow \
+        --exclude-module=PyQt5 \
+        --exclude-module=PyQt6 \
+        --exclude-module=wx \
+        --exclude-module=kivy \
+        gigafilecli.py
+    
+    if [ -f "dist-cli/gigafile-portable" ]; then
+        echo "Portable version created: dist-cli/gigafile-portable"
+        ls -lh dist-cli/gigafile-portable
+    fi
 else
     echo "Build failed. Check the output above for errors."
     exit 1
