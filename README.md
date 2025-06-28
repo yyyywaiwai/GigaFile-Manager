@@ -1,6 +1,6 @@
 # GigaFile Manager
 
-GigaFile Manager は、GigaFile便の操作を簡単にするGUIアプリケーションです。ファイルのアップロードとダウンロードを直感的なインターフェースで管理できます。
+GigaFile Manager は、GigaFile便の操作を簡単にするデスクトップアプリケーションです。ファイルのアップロードとダウンロードを直感的なGUIインターフェースで管理できます。また、CLI版も提供されており、スクリプトや自動化にも対応しています。
 99%AI製なのでコードがクッソ汚いです。
 
 ## 特徴
@@ -28,10 +28,24 @@ GigaFile Manager は、GigaFile便の操作を簡単にするGUIアプリケー�
 
 [Releases](https://github.com/yyyywaiwai/GigaFile-Manager/releases)から最新版をダウンロードしてください。
 
+#### GUI版（デスクトップアプリケーション）
 - **Windows**: `gigafile-manager-windows-x64.zip`
 - **macOS (Apple Silicon)**: `gigafile-manager-macos-arm64.zip`
 - **macOS (Intel)**: `gigafile-manager-macos-intel.zip`
 - **Linux**: `gigafile-manager-linux-x64.tar.gz`
+
+#### CLI版（コマンドライン）
+**ポータブル版（単一ファイル）**:
+- **Windows**: `gigafile-portable-windows-x64.exe`
+- **macOS (Apple Silicon)**: `gigafile-portable-macos-arm64`
+- **macOS (Intel)**: `gigafile-portable-macos-intel`
+- **Linux**: `gigafile-portable-linux-x64`
+
+**高速起動版（フォルダ）**:
+- **Windows**: `gigafile-cli-windows-x64.zip`
+- **macOS (Apple Silicon)**: `gigafile-cli-macos-arm64.zip`
+- **macOS (Intel)**: `gigafile-cli-macos-intel.zip`
+- **Linux**: `gigafile-cli-linux-x64.tar.gz`
 
 ### ソースからのビルド
 
@@ -59,6 +73,7 @@ python gigafiledl.py
 
 #### スタンドアロン実行ファイルの作成
 
+**GUI版**:
 ```bash
 # macOS/Linux
 ./build.sh
@@ -67,9 +82,21 @@ python gigafiledl.py
 pyinstaller --windowed --name="GigaFile Manager" --onedir --icon=icon.ico gigafiledl.py
 ```
 
+**CLI版**:
+```bash
+# macOS/Linux
+./build-cli.sh
+
+# Windows（PowerShell）
+pyinstaller --onefile --name="gigafile-portable" --console --strip gigafilecli.py
+pyinstaller --onedir --name="gigafile" --console --strip --optimize=2 gigafilecli.py
+```
+
 ## 使用方法
 
-### ダウンロード
+### GUI版（デスクトップアプリケーション）
+
+#### ダウンロード
 
 1. **ダウンロード先の設定**: 「参照」ボタンでダウンロード先フォルダを選択
 2. **URLの入力**: テキストエリアにGigaFileのURLを1行に1つずつ入力
@@ -77,7 +104,7 @@ pyinstaller --windowed --name="GigaFile Manager" --onedir --icon=icon.ico gigafi
    - パスワード付き: `https://xx.gigafile.nu/xxxxxxxx password123`
 3. **ダウンロード開始**: 「ダウンロード開始」ボタンをクリック
 
-### アップロード
+#### アップロード
 
 1. **ファイルの追加**: 
    - 「ファイル追加」: 個別ファイルを選択
@@ -85,11 +112,82 @@ pyinstaller --windowed --name="GigaFile Manager" --onedir --icon=icon.ico gigafi
 2. **設定の確認**: 複数ファイル時の自動ZIP化の設定を確認
 3. **アップロード開始**: 「アップロード開始」ボタンをクリック
 
-### URL管理
+#### URL管理
 
 - **個別コピー**: 処理状況テーブルの完了したアップロードをダブルクリック
 - **選択コピー**: 複数選択して「選択した完了URLをコピー」
 - **一括コピー**: 「すべての完了URLをコピー」ですべてのURLを取得
+
+### CLI版（コマンドライン）
+
+#### 基本的な使用方法
+
+```bash
+# ヘルプの表示
+gigafile --help
+
+# サブコマンドのヘルプ
+gigafile download --help
+gigafile upload --help
+```
+
+#### ダウンロード
+
+```bash
+# 単一ファイルのダウンロード
+gigafile download https://xx.gigafile.nu/xxxxxxxx
+
+# パスワード付きファイルのダウンロード
+gigafile download https://xx.gigafile.nu/xxxxxxxx --password mypassword
+# または
+gigafile download "https://xx.gigafile.nu/xxxxxxxx mypassword"
+
+# 出力ディレクトリを指定
+gigafile download https://xx.gigafile.nu/xxxxxxxx --output-dir ./downloads
+
+# URLリストファイルからダウンロード
+gigafile download --file urls.txt --output-dir ./downloads
+```
+
+**URLリストファイルの例（urls.txt）**:
+```
+https://xx.gigafile.nu/xxxxxxxx
+https://xx.gigafile.nu/yyyyyyyy password123
+# コメント行は無視されます
+https://xx.gigafile.nu/zzzzzzzz
+```
+
+#### アップロード
+
+```bash
+# 単一ファイルのアップロード
+gigafile upload file.txt
+
+# 複数ファイルのアップロード（自動ZIP化）
+gigafile upload file1.txt file2.txt --auto-zip
+
+# ディレクトリ内のファイルをアップロード
+gigafile upload --directory ./photos --pattern "*.jpg" --auto-zip
+
+# Globパターンでファイル選択
+gigafile upload "*.pdf" "docs/*.txt" --auto-zip
+
+# アップロードスレッド数を指定
+gigafile upload file.txt --threads 8
+```
+
+#### 主要オプション
+
+**ダウンロード**:
+- `--output-dir, -o`: 出力ディレクトリ（デフォルト: `./GFM-downloads`）
+- `--file, -f`: URLリストファイル
+- `--password, -p`: パスワード
+
+**アップロード**:
+- `--directory, -d`: アップロードするディレクトリ
+- `--pattern`: ファイルパターン（デフォルト: `*`）
+- `--auto-zip`: 複数ファイル時に自動ZIP化
+- `--threads, -t`: アップロードスレッド数（デフォルト: 4）
 
 ## 設定
 

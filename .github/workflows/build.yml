@@ -22,24 +22,28 @@ jobs:
             executable_ext: .exe
             artifact_name: gigafile-manager-windows-x64
             cli_artifact_name: gigafile-cli-windows-x64
+            cli_portable_name: gigafile-portable-windows-x64
           - os: macos-latest
             platform: macos
             arch: arm64
             executable_ext: .app
             artifact_name: gigafile-manager-macos-arm64
             cli_artifact_name: gigafile-cli-macos-arm64
+            cli_portable_name: gigafile-portable-macos-arm64
           - os: macos-13
             platform: macos
             arch: x64
             executable_ext: .app
             artifact_name: gigafile-manager-macos-intel
             cli_artifact_name: gigafile-cli-macos-intel
+            cli_portable_name: gigafile-portable-macos-intel
           - os: ubuntu-latest
             platform: linux
             arch: x64
             executable_ext: ""
             artifact_name: gigafile-manager-linux-x64
             cli_artifact_name: gigafile-cli-linux-x64
+            cli_portable_name: gigafile-portable-linux-x64
 
     runs-on: ${{ matrix.os }}
     
@@ -142,6 +146,33 @@ jobs:
           --exclude-module=gtk `
           --exclude-module=kivy `
           --exclude-module=pygame `
+          gigafilecli.py
+          
+        # CLI onedir版ビルド（高速起動版）
+        Remove-Item -Path build-cli-2, dist-cli-2, "gigafile-onedir.spec" -Recurse -Force -ErrorAction SilentlyContinue
+        New-Item -ItemType Directory -Force -Path build-cli-2, dist-cli-2
+        pyinstaller --onedir `
+          --name="gigafile" `
+          --distpath=dist-cli-2 `
+          --workpath=build-cli-2 `
+          --noconfirm `
+          --console `
+          --strip `
+          --optimize=2 `
+          --clean `
+          --exclude-module=tkinter `
+          --exclude-module=torch `
+          --exclude-module=transformers `
+          --exclude-module=matplotlib `
+          --exclude-module=pandas `
+          --exclude-module=numpy `
+          --exclude-module=scipy `
+          --exclude-module=sklearn `
+          --exclude-module=tensorflow `
+          --exclude-module=PyQt5 `
+          --exclude-module=PyQt6 `
+          --exclude-module=wx `
+          --exclude-module=kivy `
           gigafilecli.py
 
     - name: Build with PyInstaller (macOS)
@@ -252,6 +283,33 @@ jobs:
           --exclude-module=kivy \
           --exclude-module=pygame \
           gigafilecli.py
+          
+        # CLI onedir版ビルド（高速起動版）
+        rm -rf build-cli-2 dist-cli-2 gigafile-onedir.spec
+        mkdir -p build-cli-2 dist-cli-2
+        pyinstaller --onedir \
+          --name="gigafile" \
+          --distpath=dist-cli-2 \
+          --workpath=build-cli-2 \
+          --noconfirm \
+          --console \
+          --strip \
+          --optimize=2 \
+          --clean \
+          --exclude-module=tkinter \
+          --exclude-module=torch \
+          --exclude-module=transformers \
+          --exclude-module=matplotlib \
+          --exclude-module=pandas \
+          --exclude-module=numpy \
+          --exclude-module=scipy \
+          --exclude-module=sklearn \
+          --exclude-module=tensorflow \
+          --exclude-module=PyQt5 \
+          --exclude-module=PyQt6 \
+          --exclude-module=wx \
+          --exclude-module=kivy \
+          gigafilecli.py
 
     - name: Build CLI with PyInstaller (Linux)
       if: matrix.platform == 'linux'
@@ -315,10 +373,17 @@ jobs:
       if: matrix.platform == 'windows'
       run: |
         if (Test-Path "dist-cli/gigafile.exe") {
-          Write-Host "CLI Build successful! Application created at: dist-cli/gigafile.exe"
-          Get-Item "dist-cli/gigafile.exe" | ForEach-Object { "Size: {0:N2} MB" -f ($_.Length / 1MB) }
+          Write-Host "CLI Portable Build successful! Application created at: dist-cli/gigafile.exe"
+          Get-Item "dist-cli/gigafile.exe" | ForEach-Object { "Portable Size: {0:N2} MB" -f ($_.Length / 1MB) }
         } else {
-          Write-Host "CLI Build failed. File not found."
+          Write-Host "CLI Portable Build failed. File not found."
+          exit 1
+        }
+        if (Test-Path "dist-cli-2/gigafile") {
+          Write-Host "CLI Onedir Build successful! Application created at: dist-cli-2/gigafile/"
+          Get-ChildItem "dist-cli-2/gigafile" -Recurse | Measure-Object -Property Length -Sum | ForEach-Object { "Onedir Size: {0:N2} MB" -f ($_.Sum / 1MB) }
+        } else {
+          Write-Host "CLI Onedir Build failed. Directory not found."
           exit 1
         }
 
@@ -337,10 +402,17 @@ jobs:
       if: matrix.platform == 'macos'
       run: |
         if [ -f "dist-cli/gigafile" ]; then
-          echo "CLI Build successful! Application created at: dist-cli/gigafile"
+          echo "CLI Portable Build successful! Application created at: dist-cli/gigafile"
           ls -lh dist-cli/gigafile
         else
-          echo "CLI Build failed. Check the output above for errors."
+          echo "CLI Portable Build failed. Check the output above for errors."
+          exit 1
+        fi
+        if [ -d "dist-cli-2/gigafile" ]; then
+          echo "CLI Onedir Build successful! Application created at: dist-cli-2/gigafile/"
+          du -sh dist-cli-2/gigafile
+        else
+          echo "CLI Onedir Build failed. Check the output above for errors."
           exit 1
         fi
 
@@ -359,10 +431,17 @@ jobs:
       if: matrix.platform == 'linux'
       run: |
         if [ -f "dist-cli/gigafile" ]; then
-          echo "CLI Build successful! Application created at: dist-cli/gigafile"
+          echo "CLI Portable Build successful! Application created at: dist-cli/gigafile"
           ls -lh dist-cli/gigafile
         else
-          echo "CLI Build failed. Check the output above for errors."
+          echo "CLI Portable Build failed. Check the output above for errors."
+          exit 1
+        fi
+        if [ -d "dist-cli-2/gigafile" ]; then
+          echo "CLI Onedir Build successful! Application created at: dist-cli-2/gigafile/"
+          du -sh dist-cli-2/gigafile
+        else
+          echo "CLI Onedir Build failed. Check the output above for errors."
           exit 1
         fi
 
@@ -370,7 +449,8 @@ jobs:
       if: matrix.platform == 'windows'
       run: |
         Compress-Archive -Path "dist/GigaFile Manager" -DestinationPath "${{ matrix.artifact_name }}.zip"
-        Copy-Item "dist-cli/gigafile.exe" -Destination "${{ matrix.cli_artifact_name }}.exe"
+        Copy-Item "dist-cli/gigafile.exe" -Destination "${{ matrix.cli_portable_name }}.exe"
+        Compress-Archive -Path "dist-cli-2/gigafile" -DestinationPath "${{ matrix.cli_artifact_name }}.zip"
 
     - name: Create archive (macOS)
       if: matrix.platform == 'macos'
@@ -378,7 +458,10 @@ jobs:
         cd dist
         zip -r "../${{ matrix.artifact_name }}.zip" "GigaFile Manager.app"
         cd ..
-        cp "dist-cli/gigafile" "${{ matrix.cli_artifact_name }}"
+        cp "dist-cli/gigafile" "${{ matrix.cli_portable_name }}"
+        cd dist-cli-2
+        zip -r "../${{ matrix.cli_artifact_name }}.zip" "gigafile"
+        cd ..
 
     - name: Create archive (Linux)
       if: matrix.platform == 'linux'
@@ -386,7 +469,10 @@ jobs:
         cd dist
         tar -czf "../${{ matrix.artifact_name }}.tar.gz" "GigaFile Manager"
         cd ..
-        cp "dist-cli/gigafile" "${{ matrix.cli_artifact_name }}"
+        cp "dist-cli/gigafile" "${{ matrix.cli_portable_name }}"
+        cd dist-cli-2
+        tar -czf "../${{ matrix.cli_artifact_name }}.tar.gz" "gigafile"
+        cd ..
 
     - name: Upload Windows artifact
       if: matrix.platform == 'windows'
@@ -396,12 +482,20 @@ jobs:
         path: ${{ matrix.artifact_name }}.zip
         retention-days: 30
 
-    - name: Upload Windows CLI artifact
+    - name: Upload Windows CLI Portable artifact
+      if: matrix.platform == 'windows'
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ matrix.cli_portable_name }}
+        path: ${{ matrix.cli_portable_name }}.exe
+        retention-days: 30
+
+    - name: Upload Windows CLI Onedir artifact
       if: matrix.platform == 'windows'
       uses: actions/upload-artifact@v4
       with:
         name: ${{ matrix.cli_artifact_name }}
-        path: ${{ matrix.cli_artifact_name }}.exe
+        path: ${{ matrix.cli_artifact_name }}.zip
         retention-days: 30
 
     - name: Upload macOS artifact
@@ -412,12 +506,20 @@ jobs:
         path: ${{ matrix.artifact_name }}.zip
         retention-days: 30
 
-    - name: Upload macOS CLI artifact
+    - name: Upload macOS CLI Portable artifact
+      if: matrix.platform == 'macos'
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ matrix.cli_portable_name }}
+        path: ${{ matrix.cli_portable_name }}
+        retention-days: 30
+
+    - name: Upload macOS CLI Onedir artifact
       if: matrix.platform == 'macos'
       uses: actions/upload-artifact@v4
       with:
         name: ${{ matrix.cli_artifact_name }}
-        path: ${{ matrix.cli_artifact_name }}
+        path: ${{ matrix.cli_artifact_name }}.zip
         retention-days: 30
 
     - name: Upload Linux artifact
@@ -428,12 +530,20 @@ jobs:
         path: ${{ matrix.artifact_name }}.tar.gz
         retention-days: 30
 
-    - name: Upload Linux CLI artifact
+    - name: Upload Linux CLI Portable artifact
+      if: matrix.platform == 'linux'
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ matrix.cli_portable_name }}
+        path: ${{ matrix.cli_portable_name }}
+        retention-days: 30
+
+    - name: Upload Linux CLI Onedir artifact
       if: matrix.platform == 'linux'
       uses: actions/upload-artifact@v4
       with:
         name: ${{ matrix.cli_artifact_name }}
-        path: ${{ matrix.cli_artifact_name }}
+        path: ${{ matrix.cli_artifact_name }}.tar.gz
         retention-days: 30
 
   release:
@@ -453,10 +563,14 @@ jobs:
           gigafile-manager-macos-arm64/*.zip
           gigafile-manager-macos-intel/*.zip
           gigafile-manager-linux-x64/*.tar.gz
-          gigafile-cli-windows-x64/*.exe
-          gigafile-cli-macos-arm64/gigafile-cli-macos-arm64
-          gigafile-cli-macos-intel/gigafile-cli-macos-intel
-          gigafile-cli-linux-x64/gigafile-cli-linux-x64
+          gigafile-portable-windows-x64/*.exe
+          gigafile-portable-macos-arm64/gigafile-portable-macos-arm64
+          gigafile-portable-macos-intel/gigafile-portable-macos-intel
+          gigafile-portable-linux-x64/gigafile-portable-linux-x64
+          gigafile-cli-windows-x64/*.zip
+          gigafile-cli-macos-arm64/*.zip
+          gigafile-cli-macos-intel/*.zip
+          gigafile-cli-linux-x64/*.tar.gz
         draft: false
         prerelease: false
       env:
