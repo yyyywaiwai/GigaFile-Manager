@@ -357,6 +357,33 @@ jobs:
           --exclude-module=kivy \
           --exclude-module=pygame \
           gigafilecli.py
+          
+        # CLI onedir版ビルド（高速起動版）
+        rm -rf build-cli-2 dist-cli-2 gigafile-onedir.spec
+        mkdir -p build-cli-2 dist-cli-2
+        pyinstaller --onedir \
+          --name="gigafile" \
+          --distpath=dist-cli-2 \
+          --workpath=build-cli-2 \
+          --noconfirm \
+          --console \
+          --strip \
+          --optimize=2 \
+          --clean \
+          --exclude-module=tkinter \
+          --exclude-module=torch \
+          --exclude-module=transformers \
+          --exclude-module=matplotlib \
+          --exclude-module=pandas \
+          --exclude-module=numpy \
+          --exclude-module=scipy \
+          --exclude-module=sklearn \
+          --exclude-module=tensorflow \
+          --exclude-module=PyQt5 \
+          --exclude-module=PyQt6 \
+          --exclude-module=wx \
+          --exclude-module=kivy \
+          gigafilecli.py
 
     - name: Check build result (Windows)
       if: matrix.platform == 'windows'
