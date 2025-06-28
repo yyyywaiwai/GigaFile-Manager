@@ -1,4 +1,4 @@
-name: Build GigaFile Manager
+name: Build GigaFile Manager & CLI
 
 on:
   push:
@@ -21,21 +21,25 @@ jobs:
             arch: x64
             executable_ext: .exe
             artifact_name: gigafile-manager-windows-x64
+            cli_artifact_name: gigafile-cli-windows-x64
           - os: macos-latest
             platform: macos
             arch: arm64
             executable_ext: .app
             artifact_name: gigafile-manager-macos-arm64
+            cli_artifact_name: gigafile-cli-macos-arm64
           - os: macos-13
             platform: macos
             arch: x64
             executable_ext: .app
             artifact_name: gigafile-manager-macos-intel
+            cli_artifact_name: gigafile-cli-macos-intel
           - os: ubuntu-latest
             platform: linux
             arch: x64
             executable_ext: ""
             artifact_name: gigafile-manager-linux-x64
+            cli_artifact_name: gigafile-cli-linux-x64
 
     runs-on: ${{ matrix.os }}
     
@@ -92,6 +96,53 @@ jobs:
           --exclude-module=numba `
           --exclude-module=llvmlite `
           gigafiledl.py
+
+    - name: Build CLI with PyInstaller (Windows)
+      if: matrix.platform == 'windows'
+      run: |
+        Remove-Item -Path build-cli, dist-cli, "gigafile.spec" -Recurse -Force -ErrorAction SilentlyContinue
+        New-Item -ItemType Directory -Force -Path build-cli, dist-cli
+        pyinstaller --onefile `
+          --name="gigafile" `
+          --distpath=dist-cli `
+          --workpath=build-cli `
+          --noconfirm `
+          --console `
+          --strip `
+          --exclude-module=tkinter `
+          --exclude-module=torch `
+          --exclude-module=torchvision `
+          --exclude-module=transformers `
+          --exclude-module=cv2 `
+          --exclude-module=opencv-python `
+          --exclude-module=matplotlib `
+          --exclude-module=pandas `
+          --exclude-module=numpy `
+          --exclude-module=scipy `
+          --exclude-module=sklearn `
+          --exclude-module=tensorflow `
+          --exclude-module=jedi `
+          --exclude-module=IPython `
+          --exclude-module=jupyter `
+          --exclude-module=notebook `
+          --exclude-module=altair `
+          --exclude-module=gradio `
+          --exclude-module=timm `
+          --exclude-module=PIL `
+          --exclude-module=Pillow `
+          --exclude-module=sympy `
+          --exclude-module=numba `
+          --exclude-module=llvmlite `
+          --exclude-module=PyQt5 `
+          --exclude-module=PyQt6 `
+          --exclude-module=PySide2 `
+          --exclude-module=PySide6 `
+          --exclude-module=wx `
+          --exclude-module=gi `
+          --exclude-module=gtk `
+          --exclude-module=kivy `
+          --exclude-module=pygame `
+          gigafilecli.py
 
     - name: Build with PyInstaller (macOS)
       if: matrix.platform == 'macos'
@@ -155,6 +206,100 @@ jobs:
           --exclude-module=llvmlite \
           gigafiledl.py
 
+    - name: Build CLI with PyInstaller (macOS)
+      if: matrix.platform == 'macos'
+      run: |
+        rm -rf build-cli dist-cli gigafile.spec
+        mkdir -p build-cli dist-cli
+        pyinstaller --onefile \
+          --name="gigafile" \
+          --distpath=dist-cli \
+          --workpath=build-cli \
+          --noconfirm \
+          --console \
+          --strip \
+          --exclude-module=tkinter \
+          --exclude-module=torch \
+          --exclude-module=torchvision \
+          --exclude-module=transformers \
+          --exclude-module=cv2 \
+          --exclude-module=opencv-python \
+          --exclude-module=matplotlib \
+          --exclude-module=pandas \
+          --exclude-module=numpy \
+          --exclude-module=scipy \
+          --exclude-module=sklearn \
+          --exclude-module=tensorflow \
+          --exclude-module=jedi \
+          --exclude-module=IPython \
+          --exclude-module=jupyter \
+          --exclude-module=notebook \
+          --exclude-module=altair \
+          --exclude-module=gradio \
+          --exclude-module=timm \
+          --exclude-module=PIL \
+          --exclude-module=Pillow \
+          --exclude-module=sympy \
+          --exclude-module=numba \
+          --exclude-module=llvmlite \
+          --exclude-module=PyQt5 \
+          --exclude-module=PyQt6 \
+          --exclude-module=PySide2 \
+          --exclude-module=PySide6 \
+          --exclude-module=wx \
+          --exclude-module=gi \
+          --exclude-module=gtk \
+          --exclude-module=kivy \
+          --exclude-module=pygame \
+          gigafilecli.py
+
+    - name: Build CLI with PyInstaller (Linux)
+      if: matrix.platform == 'linux'
+      run: |
+        rm -rf build-cli dist-cli gigafile.spec
+        mkdir -p build-cli dist-cli
+        pyinstaller --onefile \
+          --name="gigafile" \
+          --distpath=dist-cli \
+          --workpath=build-cli \
+          --noconfirm \
+          --console \
+          --strip \
+          --exclude-module=tkinter \
+          --exclude-module=torch \
+          --exclude-module=torchvision \
+          --exclude-module=transformers \
+          --exclude-module=cv2 \
+          --exclude-module=opencv-python \
+          --exclude-module=matplotlib \
+          --exclude-module=pandas \
+          --exclude-module=numpy \
+          --exclude-module=scipy \
+          --exclude-module=sklearn \
+          --exclude-module=tensorflow \
+          --exclude-module=jedi \
+          --exclude-module=IPython \
+          --exclude-module=jupyter \
+          --exclude-module=notebook \
+          --exclude-module=altair \
+          --exclude-module=gradio \
+          --exclude-module=timm \
+          --exclude-module=PIL \
+          --exclude-module=Pillow \
+          --exclude-module=sympy \
+          --exclude-module=numba \
+          --exclude-module=llvmlite \
+          --exclude-module=PyQt5 \
+          --exclude-module=PyQt6 \
+          --exclude-module=PySide2 \
+          --exclude-module=PySide6 \
+          --exclude-module=wx \
+          --exclude-module=gi \
+          --exclude-module=gtk \
+          --exclude-module=kivy \
+          --exclude-module=pygame \
+          gigafilecli.py
+
     - name: Check build result (Windows)
       if: matrix.platform == 'windows'
       run: |
@@ -163,6 +308,17 @@ jobs:
           Get-ChildItem "dist/GigaFile Manager" -Recurse | Measure-Object -Property Length -Sum | ForEach-Object { "Total size: {0:N2} MB" -f ($_.Sum / 1MB) }
         } else {
           Write-Host "Build failed. Directory not found."
+          exit 1
+        }
+
+    - name: Check CLI build result (Windows)
+      if: matrix.platform == 'windows'
+      run: |
+        if (Test-Path "dist-cli/gigafile.exe") {
+          Write-Host "CLI Build successful! Application created at: dist-cli/gigafile.exe"
+          Get-Item "dist-cli/gigafile.exe" | ForEach-Object { "Size: {0:N2} MB" -f ($_.Length / 1MB) }
+        } else {
+          Write-Host "CLI Build failed. File not found."
           exit 1
         }
 
@@ -177,6 +333,17 @@ jobs:
           exit 1
         fi
 
+    - name: Check CLI build result (macOS)
+      if: matrix.platform == 'macos'
+      run: |
+        if [ -f "dist-cli/gigafile" ]; then
+          echo "CLI Build successful! Application created at: dist-cli/gigafile"
+          ls -lh dist-cli/gigafile
+        else
+          echo "CLI Build failed. Check the output above for errors."
+          exit 1
+        fi
+
     - name: Check build result (Linux)
       if: matrix.platform == 'linux'
       run: |
@@ -188,22 +355,38 @@ jobs:
           exit 1
         fi
 
+    - name: Check CLI build result (Linux)
+      if: matrix.platform == 'linux'
+      run: |
+        if [ -f "dist-cli/gigafile" ]; then
+          echo "CLI Build successful! Application created at: dist-cli/gigafile"
+          ls -lh dist-cli/gigafile
+        else
+          echo "CLI Build failed. Check the output above for errors."
+          exit 1
+        fi
+
     - name: Create archive (Windows)
       if: matrix.platform == 'windows'
       run: |
         Compress-Archive -Path "dist/GigaFile Manager" -DestinationPath "${{ matrix.artifact_name }}.zip"
+        Copy-Item "dist-cli/gigafile.exe" -Destination "${{ matrix.cli_artifact_name }}.exe"
 
     - name: Create archive (macOS)
       if: matrix.platform == 'macos'
       run: |
         cd dist
         zip -r "../${{ matrix.artifact_name }}.zip" "GigaFile Manager.app"
+        cd ..
+        cp "dist-cli/gigafile" "${{ matrix.cli_artifact_name }}"
 
     - name: Create archive (Linux)
       if: matrix.platform == 'linux'
       run: |
         cd dist
         tar -czf "../${{ matrix.artifact_name }}.tar.gz" "GigaFile Manager"
+        cd ..
+        cp "dist-cli/gigafile" "${{ matrix.cli_artifact_name }}"
 
     - name: Upload Windows artifact
       if: matrix.platform == 'windows'
@@ -211,6 +394,14 @@ jobs:
       with:
         name: ${{ matrix.artifact_name }}
         path: ${{ matrix.artifact_name }}.zip
+        retention-days: 30
+
+    - name: Upload Windows CLI artifact
+      if: matrix.platform == 'windows'
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ matrix.cli_artifact_name }}
+        path: ${{ matrix.cli_artifact_name }}.exe
         retention-days: 30
 
     - name: Upload macOS artifact
@@ -221,12 +412,28 @@ jobs:
         path: ${{ matrix.artifact_name }}.zip
         retention-days: 30
 
+    - name: Upload macOS CLI artifact
+      if: matrix.platform == 'macos'
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ matrix.cli_artifact_name }}
+        path: ${{ matrix.cli_artifact_name }}
+        retention-days: 30
+
     - name: Upload Linux artifact
       if: matrix.platform == 'linux'
       uses: actions/upload-artifact@v4
       with:
         name: ${{ matrix.artifact_name }}
         path: ${{ matrix.artifact_name }}.tar.gz
+        retention-days: 30
+
+    - name: Upload Linux CLI artifact
+      if: matrix.platform == 'linux'
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ matrix.cli_artifact_name }}
+        path: ${{ matrix.cli_artifact_name }}
         retention-days: 30
 
   release:
@@ -246,6 +453,10 @@ jobs:
           gigafile-manager-macos-arm64/*.zip
           gigafile-manager-macos-intel/*.zip
           gigafile-manager-linux-x64/*.tar.gz
+          gigafile-cli-windows-x64/*.exe
+          gigafile-cli-macos-arm64/gigafile-cli-macos-arm64
+          gigafile-cli-macos-intel/gigafile-cli-macos-intel
+          gigafile-cli-linux-x64/gigafile-cli-linux-x64
         draft: false
         prerelease: false
       env:
