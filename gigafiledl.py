@@ -27,11 +27,7 @@ from requests.adapters import HTTPAdapter
 from requests_toolbelt import MultipartEncoder, StreamingIterator
 from tqdm import tqdm
 from urllib3.util.retry import Retry
-from shutil import copy2
 import subprocess
-import shutil
-import gzip
-import tarfile
 
 
 def requests_retry_session(
@@ -75,7 +71,6 @@ def split_file(input_file, out, target_size=None, start=0, chunk_copy_size=1024*
     with open(input_file, 'rb') as f:
         f.seek(start)
         while True:
-            # print(f'{size / output_size * 100:.2f}%', end='\r')
             if size == output_size: break
             if size > output_size:
                 raise Exception(f'Size ({size}) is larger than {target_size} bytes!')
@@ -95,16 +90,6 @@ def bytes_to_size_str(bytes):
    return f"{bytes/p:.02f} {units[i]}"
 
 
-def size_str_to_bytes(size_str):
-    if isinstance(size_str, int):
-        return size_str
-    m = re.search(r'^(?P<num>\d+) ?((?P<unit>[KMGTPEZY]?)(iB|B)?)$', size_str, re.IGNORECASE)
-    assert m
-    units = ("B", "K", "M", "G", "T", "P", "E", "Z", "Y")
-    unit = (m['unit'] or 'B').upper()
-    return int(math.pow(1024, units.index(unit)) * int(m['num']))
-
-
 def requests_retry_session(
     retries=5,
     backoff_factor=0.2,
@@ -121,30 +106,6 @@ def requests_retry_session(
     session.mount('http://', adapter)
     session.mount('https://', adapter)
     return session
-
-
-def split_file(input_file, out, target_size=None, start=0, chunk_copy_size=1024*1024):
-    input_file = Path(input_file)
-    size = 0
-
-    input_size = input_file.stat().st_size
-    if target_size is None:
-        output_size = input_size - start
-    else:
-        output_size = min( target_size, input_size - start)
-
-    with open(input_file, 'rb') as f:
-        f.seek(start)
-        while True:
-            # print(f'{size / output_size * 100:.2f}%', end='\r')
-            if size == output_size: break
-            if size > output_size:
-                raise Exception(f'Size ({size}) is larger than {target_size} bytes!')
-            current_chunk_size = min(chunk_copy_size, output_size - size)
-            chunk = f.read(current_chunk_size)
-            if not chunk: break
-            size += len(chunk)
-            out.write(chunk)
 
 
 class GFile:
@@ -285,10 +246,6 @@ class GFile:
                     future.cancel()
                 return
 
-        # upload last chunk if not already
-        # if chunks > 1:
-        #     # print('\nupload the last chunk in single thread')
-        #     self.upload_chunk(chunks - 1, chunks)
 
         if self.pbar:
             for bar in self.pbar:
