@@ -475,6 +475,9 @@ def cmd_download(args):
         except Exception as e:
             print(f"エラー: ファイル読み込み失敗: {e}")
             return 1
+    else:
+        print("エラー: ダウンロードするURLまたはファイルを指定してください")
+        return 1
     
     if not urls:
         print("エラー: ダウンロードするURLが指定されていません")
@@ -558,6 +561,11 @@ def cmd_upload(args):
         for file_path in dir_path.rglob(pattern):
             if file_path.is_file():
                 files.append(str(file_path))
+    
+    # ファイルもディレクトリも指定されていない場合
+    if not args.files and not args.directory:
+        print("エラー: アップロードするファイルまたはディレクトリを指定してください")
+        return 1
     
     # 重複削除と存在確認
     valid_files = []
@@ -682,17 +690,15 @@ def main():
     
     # ダウンロードコマンド
     download_parser = subparsers.add_parser('download', help='ファイルのダウンロード')
-    download_group = download_parser.add_mutually_exclusive_group(required=True)
-    download_group.add_argument('url', nargs='?', help='GigaFileのURL（"URL パスワード"形式も可）')
-    download_group.add_argument('--file', '-f', help='URLリストファイル（1行に1URL）')
+    download_parser.add_argument('url', nargs='?', help='GigaFileのURL（"URL パスワード"形式も可）')
+    download_parser.add_argument('--file', '-f', help='URLリストファイル（1行に1URL）')
     download_parser.add_argument('--password', '-p', help='パスワード（URLで指定されていない場合）')
     download_parser.add_argument('--output-dir', '-o', default='./GFM-downloads', help='出力ディレクトリ（デフォルト: ./GFM-downloads）')
     
     # アップロードコマンド
     upload_parser = subparsers.add_parser('upload', help='ファイルのアップロード')
-    upload_group = upload_parser.add_mutually_exclusive_group(required=True)
-    upload_group.add_argument('files', nargs='*', help='アップロードするファイル（複数指定可、glob パターン対応）')
-    upload_group.add_argument('--directory', '-d', help='アップロードするディレクトリ')
+    upload_parser.add_argument('files', nargs='*', help='アップロードするファイル（複数指定可、glob パターン対応）')
+    upload_parser.add_argument('--directory', '-d', help='アップロードするディレクトリ')
     upload_parser.add_argument('--pattern', default='*', help='ディレクトリ指定時のファイルパターン（デフォルト: *）')
     upload_parser.add_argument('--auto-zip', action='store_true', help='複数ファイル時に自動ZIP化')
     upload_parser.add_argument('--threads', '-t', type=int, default=4, help='アップロードスレッド数（デフォルト: 4）')
