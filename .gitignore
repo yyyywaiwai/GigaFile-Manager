@@ -2,5 +2,7 @@
 # Nuitka build files
 build-nuitka-cli/
 dist-nuitka-cli/
+build-nuitka-gui/
+dist-nuitka-gui/
 build-nuitka-simple/
 dist-nuitka-simple/

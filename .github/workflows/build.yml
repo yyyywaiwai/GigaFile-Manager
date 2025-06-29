@@ -70,35 +70,41 @@ jobs:
         pip install -r requirements.txt
         pip install pyinstaller Pillow
 
-    - name: Build with PyInstaller (Windows)
+    - name: Build GUI with Nuitka (Windows)
       if: matrix.platform == 'windows'
       run: |
-        Remove-Item -Path build, dist, "*.spec" -Recurse -Force -ErrorAction SilentlyContinue
-        pyinstaller --windowed `
-          --name="GigaFile Manager" `
-          --onedir `
-          --icon=icon.ico `
-          --exclude-module=torch `
-          --exclude-module=torchvision `
-          --exclude-module=transformers `
-          --exclude-module=cv2 `
-          --exclude-module=opencv-python `
-          --exclude-module=matplotlib `
-          --exclude-module=pandas `
-          --exclude-module=numpy `
-          --exclude-module=scipy `
-          --exclude-module=sklearn `
-          --exclude-module=tensorflow `
-          --exclude-module=jedi `
-          --exclude-module=IPython `
-          --exclude-module=jupyter `
-          --exclude-module=notebook `
-          --exclude-module=altair `
-          --exclude-module=gradio `
-          --exclude-module=timm `
-          --exclude-module=sympy `
-          --exclude-module=numba `
-          --exclude-module=llvmlite `
+        Remove-Item -Path build-nuitka-gui, dist-nuitka-gui -Recurse -Force -ErrorAction SilentlyContinue
+        New-Item -ItemType Directory -Force -Path build-nuitka-gui, dist-nuitka-gui
+        
+        python -m nuitka `
+          --standalone `
+          --windows-console-mode=disable `
+          --windows-icon-from-ico=icon.ico `
+          --output-dir=dist-nuitka-gui `
+          --output-filename="GigaFile Manager" `
+          --include-package=tkinter `
+          --include-package=requests `
+          --include-package=urllib3 `
+          --include-package=bs4 `
+          --include-package=requests_toolbelt `
+          --include-package=tqdm `
+          --nofollow-import-to=torch `
+          --nofollow-import-to=torchvision `
+          --nofollow-import-to=transformers `
+          --nofollow-import-to=cv2 `
+          --nofollow-import-to=opencv-python `
+          --nofollow-import-to=matplotlib `
+          --nofollow-import-to=pandas `
+          --nofollow-import-to=numpy `
+          --nofollow-import-to=scipy `
+          --nofollow-import-to=sklearn `
+          --nofollow-import-to=tensorflow `
+          --nofollow-import-to=PyQt5 `
+          --nofollow-import-to=PyQt6 `
+          --nofollow-import-to=wx `
+          --nofollow-import-to=kivy `
+          --remove-output `
+          --assume-yes-for-downloads `
           gigafiledl.py
 
     - name: Build CLI with Nuitka (Windows)
@@ -165,66 +171,76 @@ jobs:
           --assume-yes-for-downloads `
           gigafilecli.py
 
-    - name: Build with PyInstaller (macOS)
+    - name: Build GUI with Nuitka (macOS)
       if: matrix.platform == 'macos'
       run: |
-        rm -rf build dist *.spec
-        pyinstaller --windowed \
-          --name="GigaFile Manager" \
-          --onedir \
-          --icon=icon.ico \
-          --exclude-module=torch \
-          --exclude-module=torchvision \
-          --exclude-module=transformers \
-          --exclude-module=cv2 \
-          --exclude-module=opencv-python \
-          --exclude-module=matplotlib \
-          --exclude-module=pandas \
-          --exclude-module=numpy \
-          --exclude-module=scipy \
-          --exclude-module=sklearn \
-          --exclude-module=tensorflow \
-          --exclude-module=jedi \
-          --exclude-module=IPython \
-          --exclude-module=jupyter \
-          --exclude-module=notebook \
-          --exclude-module=altair \
-          --exclude-module=gradio \
-          --exclude-module=timm \
-          --exclude-module=sympy \
-          --exclude-module=numba \
-          --exclude-module=llvmlite \
+        rm -rf build-nuitka-gui dist-nuitka-gui
+        mkdir -p build-nuitka-gui dist-nuitka-gui
+        
+        python3 -m nuitka \
+          --standalone \
+          --macos-create-app-bundle \
+          --macos-app-icon=icon.ico \
+          --output-dir=dist-nuitka-gui \
+          --output-filename="GigaFile Manager" \
+          --include-package=tkinter \
+          --include-package=requests \
+          --include-package=urllib3 \
+          --include-package=bs4 \
+          --include-package=requests_toolbelt \
+          --include-package=tqdm \
+          --nofollow-import-to=torch \
+          --nofollow-import-to=torchvision \
+          --nofollow-import-to=transformers \
+          --nofollow-import-to=cv2 \
+          --nofollow-import-to=opencv-python \
+          --nofollow-import-to=matplotlib \
+          --nofollow-import-to=pandas \
+          --nofollow-import-to=numpy \
+          --nofollow-import-to=scipy \
+          --nofollow-import-to=sklearn \
+          --nofollow-import-to=tensorflow \
+          --nofollow-import-to=PyQt5 \
+          --nofollow-import-to=PyQt6 \
+          --nofollow-import-to=wx \
+          --nofollow-import-to=kivy \
+          --remove-output \
+          --assume-yes-for-downloads \
           gigafiledl.py
 
-    - name: Build with PyInstaller (Linux)
+    - name: Build GUI with Nuitka (Linux)
       if: matrix.platform == 'linux'
       run: |
-        rm -rf build dist *.spec
-        pyinstaller --windowed \
-          --name="GigaFile Manager" \
-          --onedir \
-          --icon=icon.ico \
-          --exclude-module=torch \
-          --exclude-module=torchvision \
-          --exclude-module=transformers \
-          --exclude-module=cv2 \
-          --exclude-module=opencv-python \
-          --exclude-module=matplotlib \
-          --exclude-module=pandas \
-          --exclude-module=numpy \
-          --exclude-module=scipy \
-          --exclude-module=sklearn \
-          --exclude-module=tensorflow \
-          --exclude-module=jedi \
-          --exclude-module=IPython \
-          --exclude-module=jupyter \
-          --exclude-module=notebook \
-          --exclude-module=altair \
-          --exclude-module=gradio \
-          --exclude-module=timm \
-          --exclude-module=sympy \
-          --exclude-module=numba \
-          --exclude-module=llvmlite \
+        rm -rf build-nuitka-gui dist-nuitka-gui
+        mkdir -p build-nuitka-gui dist-nuitka-gui
+        
+        python3 -m nuitka \
+          --standalone \
+          --output-dir=dist-nuitka-gui \
+          --output-filename="GigaFile Manager" \
+          --include-package=tkinter \
+          --include-package=requests \
+          --include-package=urllib3 \
+          --include-package=bs4 \
+          --include-package=requests_toolbelt \
+          --include-package=tqdm \
+          --nofollow-import-to=torch \
+          --nofollow-import-to=torchvision \
+          --nofollow-import-to=transformers \
+          --nofollow-import-to=cv2 \
+          --nofollow-import-to=opencv-python \
+          --nofollow-import-to=matplotlib \
+          --nofollow-import-to=pandas \
+          --nofollow-import-to=numpy \
+          --nofollow-import-to=scipy \
+          --nofollow-import-to=sklearn \
+          --nofollow-import-to=tensorflow \
+          --nofollow-import-to=PyQt5 \
+          --nofollow-import-to=PyQt6 \
+          --nofollow-import-to=wx \
+          --nofollow-import-to=kivy \
+          --remove-output \
+          --assume-yes-for-downloads \
           gigafiledl.py
 
     - name: Build CLI with Nuitka (macOS)
@@ -355,14 +371,14 @@ jobs:
           --assume-yes-for-downloads \
           gigafilecli.py
 
-    - name: Check build result (Windows)
+    - name: Check GUI build result (Windows)
       if: matrix.platform == 'windows'
       run: |
-        if (Test-Path "dist/GigaFile Manager") {
-          Write-Host "Build successful! Application created at: dist/GigaFile Manager"
-          Get-ChildItem "dist/GigaFile Manager" -Recurse | Measure-Object -Property Length -Sum | ForEach-Object { "Total size: {0:N2} MB" -f ($_.Sum / 1MB) }
+        if (Test-Path "dist-nuitka-gui/GigaFile Manager.dist") {
+          Write-Host "GUI Build successful! Application created at: dist-nuitka-gui/GigaFile Manager.dist"
+          Get-ChildItem "dist-nuitka-gui/GigaFile Manager.dist" -Recurse | Measure-Object -Property Length -Sum | ForEach-Object { "Total size: {0:N2} MB" -f ($_.Sum / 1MB) }
         } else {
-          Write-Host "Build failed. Directory not found."
+          Write-Host "GUI Build failed. Directory not found."
           exit 1
         }
 
@@ -384,14 +400,14 @@ jobs:
           exit 1
         }
 
-    - name: Check build result (macOS)
+    - name: Check GUI build result (macOS)
       if: matrix.platform == 'macos'
       run: |
-        if [ -d "dist/GigaFile Manager.app" ]; then
-          echo "Build successful! Application created at: dist/GigaFile Manager.app"
-          du -sh "dist/GigaFile Manager.app"
+        if [ -d "dist-nuitka-gui/GigaFile Manager.app" ]; then
+          echo "GUI Build successful! Application created at: dist-nuitka-gui/GigaFile Manager.app"
+          du -sh "dist-nuitka-gui/GigaFile Manager.app"
         else
-          echo "Build failed. Check the output above for errors."
+          echo "GUI Build failed. Check the output above for errors."
           exit 1
         fi
 
@@ -413,14 +429,14 @@ jobs:
           exit 1
         fi
 
-    - name: Check build result (Linux)
+    - name: Check GUI build result (Linux)
       if: matrix.platform == 'linux'
       run: |
-        if [ -d "dist/GigaFile Manager" ]; then
-          echo "Build successful! Application created at: dist/GigaFile Manager"
-          du -sh "dist/GigaFile Manager"
+        if [ -d "dist-nuitka-gui/GigaFile Manager.dist" ]; then
+          echo "GUI Build successful! Application created at: dist-nuitka-gui/GigaFile Manager.dist"
+          du -sh "dist-nuitka-gui/GigaFile Manager.dist"
         else
-          echo "Build failed. Check the output above for errors."
+          echo "GUI Build failed. Check the output above for errors."
           exit 1
         fi
 
@@ -445,14 +461,14 @@ jobs:
     - name: Create archive (Windows)
       if: matrix.platform == 'windows'
       run: |
-        Compress-Archive -Path "dist/GigaFile Manager" -DestinationPath "${{ matrix.artifact_name }}.zip"
+        Compress-Archive -Path "dist-nuitka-gui/GigaFile Manager.dist" -DestinationPath "${{ matrix.artifact_name }}.zip"
         Copy-Item "dist-nuitka-cli/gigafile-portable.exe" -Destination "${{ matrix.cli_portable_name }}.exe"
         Compress-Archive -Path "dist-nuitka-cli/standalone-final/gigafilecli.dist" -DestinationPath "${{ matrix.cli_artifact_name }}.zip"
 
     - name: Create archive (macOS)
       if: matrix.platform == 'macos'
       run: |
-        cd dist
+        cd dist-nuitka-gui
         zip -r "../${{ matrix.artifact_name }}.zip" "GigaFile Manager.app"
         cd ..
         cp "dist-nuitka-cli/gigafile-portable" "${{ matrix.cli_portable_name }}"
@@ -463,8 +479,8 @@ jobs:
     - name: Create archive (Linux)
       if: matrix.platform == 'linux'
       run: |
-        cd dist
-        tar -czf "../${{ matrix.artifact_name }}.tar.gz" "GigaFile Manager"
+        cd dist-nuitka-gui
+        tar -czf "../${{ matrix.artifact_name }}.tar.gz" "GigaFile Manager.dist"
         cd ..
         cp "dist-nuitka-cli/gigafile-portable" "${{ matrix.cli_portable_name }}"
         cd dist-nuitka-cli/standalone-final
