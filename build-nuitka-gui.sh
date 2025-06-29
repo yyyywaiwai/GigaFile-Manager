@@ -13,7 +13,6 @@ echo "Building GUI application..."
 python3 -m nuitka \
     --standalone \
     --macos-create-app-bundle \
-    --macos-app-icon=icon.ico \
     --output-dir=dist-nuitka-gui \
     --output-filename="GigaFile Manager" \
     --include-package=tkinter \
