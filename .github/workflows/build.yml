@@ -80,6 +80,7 @@ jobs:
           --standalone `
           --windows-console-mode=disable `
           --windows-icon-from-ico=icon.ico `
+          --enable-plugin=tk-inter `
           --output-dir=dist-nuitka-gui `
           --output-filename="GigaFile Manager" `
           --include-package=tkinter `
@@ -180,6 +181,8 @@ jobs:
         python3 -m nuitka \
           --standalone \
           --macos-create-app-bundle \
+          --macos-app-icon=icon.ico \
+          --enable-plugin=tk-inter \
           --output-dir=dist-nuitka-gui \
           --output-filename="GigaFile Manager" \
           --include-package=tkinter \
@@ -215,6 +218,7 @@ jobs:
         
         python3 -m nuitka \
           --standalone \
+          --enable-plugin=tk-inter \
           --output-dir=dist-nuitka-gui \
           --output-filename="GigaFile Manager" \
           --include-package=tkinter \
