@@ -68,6 +68,11 @@ python3 -m nuitka \
     --assume-yes-for-downloads \
     gigafiledl.py
 
+# .appファイル名をリネーム
+if [ -d "dist-nuitka-gui/gigafiledl.app" ]; then
+    mv "dist-nuitka-gui/gigafiledl.app" "dist-nuitka-gui/GigaFile Manager.app"
+fi
+
 # ビルド結果を確認
 if [ -d "dist-nuitka-gui/GigaFile Manager.app" ]; then
     echo "Build successful! Application created at: dist-nuitka-gui/GigaFile Manager.app"

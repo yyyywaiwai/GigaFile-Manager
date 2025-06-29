@@ -245,6 +245,11 @@ jobs:
           --remove-output \
           --assume-yes-for-downloads \
           gigafiledl.py
+        
+        # .appファイル名をリネーム
+        if [ -d "dist-nuitka-gui/gigafiledl.app" ]; then
+          mv "dist-nuitka-gui/gigafiledl.app" "dist-nuitka-gui/GigaFile Manager.app"
+        fi
 
     - name: Build CLI with Nuitka (macOS)
       if: matrix.platform == 'macos'
