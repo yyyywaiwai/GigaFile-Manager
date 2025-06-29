@@ -1,0 +1,6 @@
+
+# Nuitka build files
+build-nuitka-cli/
+dist-nuitka-cli/
+build-nuitka-simple/
+dist-nuitka-simple/

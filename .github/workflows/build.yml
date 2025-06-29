@@ -101,78 +101,68 @@ jobs:
           --exclude-module=llvmlite `
           gigafiledl.py
 
-    - name: Build CLI with PyInstaller (Windows)
+    - name: Build CLI with Nuitka (Windows)
       if: matrix.platform == 'windows'
       run: |
-        Remove-Item -Path build-cli, dist-cli, "gigafile.spec" -Recurse -Force -ErrorAction SilentlyContinue
-        New-Item -ItemType Directory -Force -Path build-cli, dist-cli
-        pyinstaller --onefile `
-          --name="gigafile" `
-          --distpath=dist-cli `
-          --workpath=build-cli `
-          --noconfirm `
-          --console `
-          --strip `
-          --exclude-module=tkinter `
-          --exclude-module=torch `
-          --exclude-module=torchvision `
-          --exclude-module=transformers `
-          --exclude-module=cv2 `
-          --exclude-module=opencv-python `
-          --exclude-module=matplotlib `
-          --exclude-module=pandas `
-          --exclude-module=numpy `
-          --exclude-module=scipy `
-          --exclude-module=sklearn `
-          --exclude-module=tensorflow `
-          --exclude-module=jedi `
-          --exclude-module=IPython `
-          --exclude-module=jupyter `
-          --exclude-module=notebook `
-          --exclude-module=altair `
-          --exclude-module=gradio `
-          --exclude-module=timm `
-          --exclude-module=PIL `
-          --exclude-module=Pillow `
-          --exclude-module=sympy `
-          --exclude-module=numba `
-          --exclude-module=llvmlite `
-          --exclude-module=PyQt5 `
-          --exclude-module=PyQt6 `
-          --exclude-module=PySide2 `
-          --exclude-module=PySide6 `
-          --exclude-module=wx `
-          --exclude-module=gi `
-          --exclude-module=gtk `
-          --exclude-module=kivy `
-          --exclude-module=pygame `
+        Remove-Item -Path build-nuitka-cli, dist-nuitka-cli -Recurse -Force -ErrorAction SilentlyContinue
+        New-Item -ItemType Directory -Force -Path build-nuitka-cli, dist-nuitka-cli
+        
+        # スタンドアロン版ビルド
+        python -m nuitka `
+          --standalone `
+          --output-dir=dist-nuitka-cli `
+          --output-filename=gigafile `
+          --include-package=requests `
+          --include-package=urllib3 `
+          --include-package=bs4 `
+          --include-package=requests_toolbelt `
+          --include-package=tqdm `
+          --nofollow-import-to=tkinter `
+          --nofollow-import-to=torch `
+          --nofollow-import-to=transformers `
+          --nofollow-import-to=matplotlib `
+          --nofollow-import-to=pandas `
+          --nofollow-import-to=numpy `
+          --nofollow-import-to=scipy `
+          --nofollow-import-to=sklearn `
+          --nofollow-import-to=tensorflow `
+          --nofollow-import-to=PyQt5 `
+          --nofollow-import-to=PyQt6 `
+          --nofollow-import-to=wx `
+          --nofollow-import-to=kivy `
+          --remove-output `
+          --assume-yes-for-downloads `
           gigafilecli.py
-          
-        # CLI onedir版ビルド（高速起動版）
-        Remove-Item -Path build-cli-2, dist-cli-2, "gigafile-onedir.spec" -Recurse -Force -ErrorAction SilentlyContinue
-        New-Item -ItemType Directory -Force -Path build-cli-2, dist-cli-2
-        pyinstaller --onedir `
-          --name="gigafile" `
-          --distpath=dist-cli-2 `
-          --workpath=build-cli-2 `
-          --noconfirm `
-          --console `
-          --strip `
-          --optimize=2 `
-          --clean `
-          --exclude-module=tkinter `
-          --exclude-module=torch `
-          --exclude-module=transformers `
-          --exclude-module=matplotlib `
-          --exclude-module=pandas `
-          --exclude-module=numpy `
-          --exclude-module=scipy `
-          --exclude-module=sklearn `
-          --exclude-module=tensorflow `
-          --exclude-module=PyQt5 `
-          --exclude-module=PyQt6 `
-          --exclude-module=wx `
-          --exclude-module=kivy `
+        
+        # スタンドアロン版を保護
+        New-Item -ItemType Directory -Force -Path "dist-nuitka-cli/standalone-final"
+        Copy-Item -Recurse "dist-nuitka-cli/gigafilecli.dist" "dist-nuitka-cli/standalone-final/"
+        
+        # ポータブル版ビルド
+        python -m nuitka `
+          --onefile `
+          --output-dir=dist-nuitka-cli `
+          --output-filename=gigafile-portable `
+          --include-package=requests `
+          --include-package=urllib3 `
+          --include-package=bs4 `
+          --include-package=requests_toolbelt `
+          --include-package=tqdm `
+          --nofollow-import-to=tkinter `
+          --nofollow-import-to=torch `
+          --nofollow-import-to=transformers `
+          --nofollow-import-to=matplotlib `
+          --nofollow-import-to=pandas `
+          --nofollow-import-to=numpy `
+          --nofollow-import-to=scipy `
+          --nofollow-import-to=sklearn `
+          --nofollow-import-to=tensorflow `
+          --nofollow-import-to=PyQt5 `
+          --nofollow-import-to=PyQt6 `
+          --nofollow-import-to=wx `
+          --nofollow-import-to=kivy `
+          --remove-output `
+          --assume-yes-for-downloads `
           gigafilecli.py
 
     - name: Build with PyInstaller (macOS)
@@ -237,152 +227,132 @@ jobs:
           --exclude-module=llvmlite \
           gigafiledl.py
 
-    - name: Build CLI with PyInstaller (macOS)
+    - name: Build CLI with Nuitka (macOS)
       if: matrix.platform == 'macos'
       run: |
-        rm -rf build-cli dist-cli gigafile.spec
-        mkdir -p build-cli dist-cli
-        pyinstaller --onefile \
-          --name="gigafile" \
-          --distpath=dist-cli \
-          --workpath=build-cli \
-          --noconfirm \
-          --console \
-          --strip \
-          --exclude-module=tkinter \
-          --exclude-module=torch \
-          --exclude-module=torchvision \
-          --exclude-module=transformers \
-          --exclude-module=cv2 \
-          --exclude-module=opencv-python \
-          --exclude-module=matplotlib \
-          --exclude-module=pandas \
-          --exclude-module=numpy \
-          --exclude-module=scipy \
-          --exclude-module=sklearn \
-          --exclude-module=tensorflow \
-          --exclude-module=jedi \
-          --exclude-module=IPython \
-          --exclude-module=jupyter \
-          --exclude-module=notebook \
-          --exclude-module=altair \
-          --exclude-module=gradio \
-          --exclude-module=timm \
-          --exclude-module=PIL \
-          --exclude-module=Pillow \
-          --exclude-module=sympy \
-          --exclude-module=numba \
-          --exclude-module=llvmlite \
-          --exclude-module=PyQt5 \
-          --exclude-module=PyQt6 \
-          --exclude-module=PySide2 \
-          --exclude-module=PySide6 \
-          --exclude-module=wx \
-          --exclude-module=gi \
-          --exclude-module=gtk \
-          --exclude-module=kivy \
-          --exclude-module=pygame \
+        rm -rf build-nuitka-cli dist-nuitka-cli
+        mkdir -p build-nuitka-cli dist-nuitka-cli
+        
+        # スタンドアロン版ビルド
+        python3 -m nuitka \
+          --standalone \
+          --output-dir=dist-nuitka-cli \
+          --output-filename=gigafile \
+          --include-package=requests \
+          --include-package=urllib3 \
+          --include-package=bs4 \
+          --include-package=requests_toolbelt \
+          --include-package=tqdm \
+          --nofollow-import-to=tkinter \
+          --nofollow-import-to=torch \
+          --nofollow-import-to=transformers \
+          --nofollow-import-to=matplotlib \
+          --nofollow-import-to=pandas \
+          --nofollow-import-to=numpy \
+          --nofollow-import-to=scipy \
+          --nofollow-import-to=sklearn \
+          --nofollow-import-to=tensorflow \
+          --nofollow-import-to=PyQt5 \
+          --nofollow-import-to=PyQt6 \
+          --nofollow-import-to=wx \
+          --nofollow-import-to=kivy \
+          --remove-output \
+          --assume-yes-for-downloads \
           gigafilecli.py
-          
-        # CLI onedir版ビルド（高速起動版）
-        rm -rf build-cli-2 dist-cli-2 gigafile-onedir.spec
-        mkdir -p build-cli-2 dist-cli-2
-        pyinstaller --onedir \
-          --name="gigafile" \
-          --distpath=dist-cli-2 \
-          --workpath=build-cli-2 \
-          --noconfirm \
-          --console \
-          --strip \
-          --optimize=2 \
-          --clean \
-          --exclude-module=tkinter \
-          --exclude-module=torch \
-          --exclude-module=transformers \
-          --exclude-module=matplotlib \
-          --exclude-module=pandas \
-          --exclude-module=numpy \
-          --exclude-module=scipy \
-          --exclude-module=sklearn \
-          --exclude-module=tensorflow \
-          --exclude-module=PyQt5 \
-          --exclude-module=PyQt6 \
-          --exclude-module=wx \
-          --exclude-module=kivy \
+        
+        # スタンドアロン版を保護
+        mkdir -p dist-nuitka-cli/standalone-final
+        cp -r dist-nuitka-cli/gigafilecli.dist dist-nuitka-cli/standalone-final/
+        
+        # ポータブル版ビルド
+        python3 -m nuitka \
+          --onefile \
+          --output-dir=dist-nuitka-cli \
+          --output-filename=gigafile-portable \
+          --include-package=requests \
+          --include-package=urllib3 \
+          --include-package=bs4 \
+          --include-package=requests_toolbelt \
+          --include-package=tqdm \
+          --nofollow-import-to=tkinter \
+          --nofollow-import-to=torch \
+          --nofollow-import-to=transformers \
+          --nofollow-import-to=matplotlib \
+          --nofollow-import-to=pandas \
+          --nofollow-import-to=numpy \
+          --nofollow-import-to=scipy \
+          --nofollow-import-to=sklearn \
+          --nofollow-import-to=tensorflow \
+          --nofollow-import-to=PyQt5 \
+          --nofollow-import-to=PyQt6 \
+          --nofollow-import-to=wx \
+          --nofollow-import-to=kivy \
+          --remove-output \
+          --assume-yes-for-downloads \
           gigafilecli.py
 
-    - name: Build CLI with PyInstaller (Linux)
+    - name: Build CLI with Nuitka (Linux)
       if: matrix.platform == 'linux'
       run: |
-        rm -rf build-cli dist-cli gigafile.spec
-        mkdir -p build-cli dist-cli
-        pyinstaller --onefile \
-          --name="gigafile" \
-          --distpath=dist-cli \
-          --workpath=build-cli \
-          --noconfirm \
-          --console \
-          --strip \
-          --exclude-module=tkinter \
-          --exclude-module=torch \
-          --exclude-module=torchvision \
-          --exclude-module=transformers \
-          --exclude-module=cv2 \
-          --exclude-module=opencv-python \
-          --exclude-module=matplotlib \
-          --exclude-module=pandas \
-          --exclude-module=numpy \
-          --exclude-module=scipy \
-          --exclude-module=sklearn \
-          --exclude-module=tensorflow \
-          --exclude-module=jedi \
-          --exclude-module=IPython \
-          --exclude-module=jupyter \
-          --exclude-module=notebook \
-          --exclude-module=altair \
-          --exclude-module=gradio \
-          --exclude-module=timm \
-          --exclude-module=PIL \
-          --exclude-module=Pillow \
-          --exclude-module=sympy \
-          --exclude-module=numba \
-          --exclude-module=llvmlite \
-          --exclude-module=PyQt5 \
-          --exclude-module=PyQt6 \
-          --exclude-module=PySide2 \
-          --exclude-module=PySide6 \
-          --exclude-module=wx \
-          --exclude-module=gi \
-          --exclude-module=gtk \
-          --exclude-module=kivy \
-          --exclude-module=pygame \
+        rm -rf build-nuitka-cli dist-nuitka-cli
+        mkdir -p build-nuitka-cli dist-nuitka-cli
+        
+        # スタンドアロン版ビルド
+        python3 -m nuitka \
+          --standalone \
+          --output-dir=dist-nuitka-cli \
+          --output-filename=gigafile \
+          --include-package=requests \
+          --include-package=urllib3 \
+          --include-package=bs4 \
+          --include-package=requests_toolbelt \
+          --include-package=tqdm \
+          --nofollow-import-to=tkinter \
+          --nofollow-import-to=torch \
+          --nofollow-import-to=transformers \
+          --nofollow-import-to=matplotlib \
+          --nofollow-import-to=pandas \
+          --nofollow-import-to=numpy \
+          --nofollow-import-to=scipy \
+          --nofollow-import-to=sklearn \
+          --nofollow-import-to=tensorflow \
+          --nofollow-import-to=PyQt5 \
+          --nofollow-import-to=PyQt6 \
+          --nofollow-import-to=wx \
+          --nofollow-import-to=kivy \
+          --remove-output \
+          --assume-yes-for-downloads \
           gigafilecli.py
-          
-        # CLI onedir版ビルド（高速起動版）
-        rm -rf build-cli-2 dist-cli-2 gigafile-onedir.spec
-        mkdir -p build-cli-2 dist-cli-2
-        pyinstaller --onedir \
-          --name="gigafile" \
-          --distpath=dist-cli-2 \
-          --workpath=build-cli-2 \
-          --noconfirm \
-          --console \
-          --strip \
-          --optimize=2 \
-          --clean \
-          --exclude-module=tkinter \
-          --exclude-module=torch \
-          --exclude-module=transformers \
-          --exclude-module=matplotlib \
-          --exclude-module=pandas \
-          --exclude-module=numpy \
-          --exclude-module=scipy \
-          --exclude-module=sklearn \
-          --exclude-module=tensorflow \
-          --exclude-module=PyQt5 \
-          --exclude-module=PyQt6 \
-          --exclude-module=wx \
-          --exclude-module=kivy \
+        
+        # スタンドアロン版を保護
+        mkdir -p dist-nuitka-cli/standalone-final
+        cp -r dist-nuitka-cli/gigafilecli.dist dist-nuitka-cli/standalone-final/
+        
+        # ポータブル版ビルド
+        python3 -m nuitka \
+          --onefile \
+          --output-dir=dist-nuitka-cli \
+          --output-filename=gigafile-portable \
+          --include-package=requests \
+          --include-package=urllib3 \
+          --include-package=bs4 \
+          --include-package=requests_toolbelt \
+          --include-package=tqdm \
+          --nofollow-import-to=tkinter \
+          --nofollow-import-to=torch \
+          --nofollow-import-to=transformers \
+          --nofollow-import-to=matplotlib \
+          --nofollow-import-to=pandas \
+          --nofollow-import-to=numpy \
+          --nofollow-import-to=scipy \
+          --nofollow-import-to=sklearn \
+          --nofollow-import-to=tensorflow \
+          --nofollow-import-to=PyQt5 \
+          --nofollow-import-to=PyQt6 \
+          --nofollow-import-to=wx \
+          --nofollow-import-to=kivy \
+          --remove-output \
+          --assume-yes-for-downloads \
           gigafilecli.py
 
     - name: Check build result (Windows)
@@ -399,18 +369,18 @@ jobs:
     - name: Check CLI build result (Windows)
       if: matrix.platform == 'windows'
       run: |
-        if (Test-Path "dist-cli/gigafile.exe") {
-          Write-Host "CLI Portable Build successful! Application created at: dist-cli/gigafile.exe"
-          Get-Item "dist-cli/gigafile.exe" | ForEach-Object { "Portable Size: {0:N2} MB" -f ($_.Length / 1MB) }
+        if (Test-Path "dist-nuitka-cli/gigafile-portable.exe") {
+          Write-Host "CLI Portable Build successful! Application created at: dist-nuitka-cli/gigafile-portable.exe"
+          Get-Item "dist-nuitka-cli/gigafile-portable.exe" | ForEach-Object { "Portable Size: {0:N2} MB" -f ($_.Length / 1MB) }
         } else {
           Write-Host "CLI Portable Build failed. File not found."
           exit 1
         }
-        if (Test-Path "dist-cli-2/gigafile") {
-          Write-Host "CLI Onedir Build successful! Application created at: dist-cli-2/gigafile/"
-          Get-ChildItem "dist-cli-2/gigafile" -Recurse | Measure-Object -Property Length -Sum | ForEach-Object { "Onedir Size: {0:N2} MB" -f ($_.Sum / 1MB) }
+        if (Test-Path "dist-nuitka-cli/standalone-final/gigafilecli.dist") {
+          Write-Host "CLI Standalone Build successful! Application created at: dist-nuitka-cli/standalone-final/gigafilecli.dist/"
+          Get-ChildItem "dist-nuitka-cli/standalone-final/gigafilecli.dist" -Recurse | Measure-Object -Property Length -Sum | ForEach-Object { "Standalone Size: {0:N2} MB" -f ($_.Sum / 1MB) }
         } else {
-          Write-Host "CLI Onedir Build failed. Directory not found."
+          Write-Host "CLI Standalone Build failed. Directory not found."
           exit 1
         }
 
@@ -428,18 +398,18 @@ jobs:
     - name: Check CLI build result (macOS)
       if: matrix.platform == 'macos'
       run: |
-        if [ -f "dist-cli/gigafile" ]; then
-          echo "CLI Portable Build successful! Application created at: dist-cli/gigafile"
-          ls -lh dist-cli/gigafile
+        if [ -f "dist-nuitka-cli/gigafile-portable" ]; then
+          echo "CLI Portable Build successful! Application created at: dist-nuitka-cli/gigafile-portable"
+          ls -lh dist-nuitka-cli/gigafile-portable
         else
           echo "CLI Portable Build failed. Check the output above for errors."
           exit 1
         fi
-        if [ -d "dist-cli-2/gigafile" ]; then
-          echo "CLI Onedir Build successful! Application created at: dist-cli-2/gigafile/"
-          du -sh dist-cli-2/gigafile
+        if [ -d "dist-nuitka-cli/standalone-final/gigafilecli.dist" ]; then
+          echo "CLI Standalone Build successful! Application created at: dist-nuitka-cli/standalone-final/gigafilecli.dist/"
+          du -sh dist-nuitka-cli/standalone-final/gigafilecli.dist
         else
-          echo "CLI Onedir Build failed. Check the output above for errors."
+          echo "CLI Standalone Build failed. Check the output above for errors."
           exit 1
         fi
 
@@ -457,18 +427,18 @@ jobs:
     - name: Check CLI build result (Linux)
       if: matrix.platform == 'linux'
       run: |
-        if [ -f "dist-cli/gigafile" ]; then
-          echo "CLI Portable Build successful! Application created at: dist-cli/gigafile"
-          ls -lh dist-cli/gigafile
+        if [ -f "dist-nuitka-cli/gigafile-portable" ]; then
+          echo "CLI Portable Build successful! Application created at: dist-nuitka-cli/gigafile-portable"
+          ls -lh dist-nuitka-cli/gigafile-portable
         else
           echo "CLI Portable Build failed. Check the output above for errors."
           exit 1
         fi
-        if [ -d "dist-cli-2/gigafile" ]; then
-          echo "CLI Onedir Build successful! Application created at: dist-cli-2/gigafile/"
-          du -sh dist-cli-2/gigafile
+        if [ -d "dist-nuitka-cli/standalone-final/gigafilecli.dist" ]; then
+          echo "CLI Standalone Build successful! Application created at: dist-nuitka-cli/standalone-final/gigafilecli.dist/"
+          du -sh dist-nuitka-cli/standalone-final/gigafilecli.dist
         else
-          echo "CLI Onedir Build failed. Check the output above for errors."
+          echo "CLI Standalone Build failed. Check the output above for errors."
           exit 1
         fi
 
@@ -476,8 +446,8 @@ jobs:
       if: matrix.platform == 'windows'
       run: |
         Compress-Archive -Path "dist/GigaFile Manager" -DestinationPath "${{ matrix.artifact_name }}.zip"
-        Copy-Item "dist-cli/gigafile.exe" -Destination "${{ matrix.cli_portable_name }}.exe"
-        Compress-Archive -Path "dist-cli-2/gigafile" -DestinationPath "${{ matrix.cli_artifact_name }}.zip"
+        Copy-Item "dist-nuitka-cli/gigafile-portable.exe" -Destination "${{ matrix.cli_portable_name }}.exe"
+        Compress-Archive -Path "dist-nuitka-cli/standalone-final/gigafilecli.dist" -DestinationPath "${{ matrix.cli_artifact_name }}.zip"
 
     - name: Create archive (macOS)
       if: matrix.platform == 'macos'
@@ -485,10 +455,10 @@ jobs:
         cd dist
         zip -r "../${{ matrix.artifact_name }}.zip" "GigaFile Manager.app"
         cd ..
-        cp "dist-cli/gigafile" "${{ matrix.cli_portable_name }}"
-        cd dist-cli-2
-        zip -r "../${{ matrix.cli_artifact_name }}.zip" "gigafile"
-        cd ..
+        cp "dist-nuitka-cli/gigafile-portable" "${{ matrix.cli_portable_name }}"
+        cd dist-nuitka-cli/standalone-final
+        zip -r "../../${{ matrix.cli_artifact_name }}.zip" "gigafilecli.dist"
+        cd ../..
 
     - name: Create archive (Linux)
       if: matrix.platform == 'linux'
@@ -496,10 +466,10 @@ jobs:
         cd dist
         tar -czf "../${{ matrix.artifact_name }}.tar.gz" "GigaFile Manager"
         cd ..
-        cp "dist-cli/gigafile" "${{ matrix.cli_portable_name }}"
-        cd dist-cli-2
-        tar -czf "../${{ matrix.cli_artifact_name }}.tar.gz" "gigafile"
-        cd ..
+        cp "dist-nuitka-cli/gigafile-portable" "${{ matrix.cli_portable_name }}"
+        cd dist-nuitka-cli/standalone-final
+        tar -czf "../../${{ matrix.cli_artifact_name }}.tar.gz" "gigafilecli.dist"
+        cd ../..
 
     - name: Upload Windows artifact
       if: matrix.platform == 'windows'
