@@ -107,6 +107,11 @@ jobs:
           --remove-output `
           --assume-yes-for-downloads `
           gigafiledl.py
+        
+        # ビルド結果のディレクトリ名をリネーム
+        if (Test-Path "dist-nuitka-gui/gigafiledl.dist") {
+          Rename-Item "dist-nuitka-gui/gigafiledl.dist" "GigaFile Manager.dist"
+        }
 
     - name: Build CLI with Nuitka (Windows)
       if: matrix.platform == 'windows'
@@ -246,9 +251,9 @@ jobs:
           --assume-yes-for-downloads \
           gigafiledl.py
         
-        # .appファイル名をリネーム
-        if [ -d "dist-nuitka-gui/gigafiledl.app" ]; then
-          mv "dist-nuitka-gui/gigafiledl.app" "dist-nuitka-gui/GigaFile Manager.app"
+        # ビルド結果のディレクトリ名をリネーム
+        if [ -d "dist-nuitka-gui/gigafiledl.dist" ]; then
+          mv "dist-nuitka-gui/gigafiledl.dist" "dist-nuitka-gui/GigaFile Manager.dist"
         fi
 
     - name: Build CLI with Nuitka (macOS)
