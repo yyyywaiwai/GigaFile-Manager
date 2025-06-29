@@ -214,6 +214,19 @@ jobs:
           --remove-output \
           --assume-yes-for-downloads \
           gigafiledl.py
+        
+        # .appファイル名をリネーム
+        echo "Checking for generated app..."
+        ls -la dist-nuitka-gui/
+        if [ -d "dist-nuitka-gui/gigafiledl.app" ]; then
+          echo "Renaming gigafiledl.app to GigaFile Manager.app"
+          mv "dist-nuitka-gui/gigafiledl.app" "dist-nuitka-gui/GigaFile Manager.app"
+          echo "Rename completed"
+        else
+          echo "gigafiledl.app not found"
+        fi
+        echo "Final directory contents:"
+        ls -la dist-nuitka-gui/
 
     - name: Build GUI with Nuitka (Linux)
       if: matrix.platform == 'linux'
